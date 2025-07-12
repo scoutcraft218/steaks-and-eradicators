@@ -3,24 +3,23 @@ ID;Name;Description;Tier
 2;Learning the Ropes;Use 10 items;1
 3;Architect;Create/Place 3 Buildings;1
 4;Multitasker;Use an Item, Hazard, and Building in 1 Turn;1
-5;Nasty Preparations;Create/Place 6 Hazards;1
+5;Nasty Preparations;Create/Place 5 Hazards;1
 6;Going up the Tiers;Use a T1, T2, T3 item within a single Turn.;1
 7;Not enough Explosions;Use 5 Temporary Creation items (using a Mortar counts).;1
-8;Power of Luck;Apply both a Constant and Reroll on a Dice on the same Turn.;1
-9;Ultimate Octopus;Pass from one end of a Column to the other end without Passing a Player within a single Turn.;1
-10;Ramp in Power;Use a T0, T1, T2, T3 and T4 (ability) items within a single Turn.;2
-11;Bounty Hunting;Steal 30 Gold from a Target in 1 Turn;2
-12;Speedrunner;Move 30 Spaces across the Board in 1 Turn;2
-13;King of the Tile;End your turn on Space X;2
-14;Beat and Greet;Steal something from a Player and End your Turn on the same Space as them.;2
-15;Second Life;Reach the End Twice in 1 Turn;2
-16;Improvised Gunslinger;Use 3 Unique Line of Sight Items in 1 Turn;2
-17;Fail Compilation;Trigger 4 Hazards in 1 Turn;2
-18;Guardian Angel;Save a Target from a Hazard 3 Times;2
-19;Run it Back;Start 3 Turns on the same Row;2
-20;Master of Null;Use 4 T0 items within a single Turn.;2
-21;Rush to Riches;Gain 50 Gold in 1 Turn;3
-22;Darkness is Beautiful;Start a Turn with every Player in the Spatial Hallway.;3
-23;Tying up Knots;Use 10 Unique items in 1 Turn;3
-24;He Strikes Again;Pass the same Player 4 times within a single Turn.;2
-25;Everything is NOT Fine;Have 5 Unique Curses at the same time.;3
+8;Power of Luck;Apply 2 "Constants" and "Rerolls" on the same Turn. (Does NOT include Move Dice Reroll);1
+9;Ramp in Power;Use a T0, T1, T2, T3 and T4 (ability) items within a single Turn.;2
+10;Bounty Hunting;Steal 30 Gold from a Target in 1 Turn;2
+11;Speedrunner;Move 30 Spaces across the Board in 1 Turn;2
+12;King of the Tile;End your turn on Space X;2
+13;Beat and Greet;Steal something from a Player and End your Turn on the same Space as them.;2
+14;Second Life;Reach the End Twice in 1 Turn;2
+15;Improvised Gunslinger;Use 3 Unique Line of Sight Items in 1 Turn;2
+16;Fail Compilation;Trigger 4 Hazards in 1 Turn;2
+17;Guardian Angel;Save a Target from a Hazard 3 Times;2
+18;Run it Back;Start 3 Turns on the same Row;2
+19;Master of Null;Use 4 T0 items within a single Turn.;2
+20;Rush to Riches;Gain 50 Gold in 1 Turn;3
+21;Darkness is Beautiful;Start a Turn with every Player in the Spatial Hallway.;3
+22;Tying up Knots;Use 10 Unique items in 1 Turn;3
+23;He Strikes Again;Pass the same Player 4 times within a single Turn.;2
+24;Everything is NOT Fine;Have 5 Unique Curses at the same time.;3

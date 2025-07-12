@@ -93,7 +93,23 @@ public class Item {
 		HEX_THEME.put("Curse", "#b4a7d6");
 		HEX_THEME.put("Hazard/Item", "#ff9900");
 		
-		if (simpleTheme) { // use simplified color themes or not
+		if (!simpleTheme) { // use the original colors
+			HEX_THEME.put("Gold", "#f1c232");
+			HEX_THEME.put("Steal", "#ee560b");
+			HEX_THEME.put("Gain", "#c4d313");
+			HEX_THEME.put("Mobility", "#43e243");
+			HEX_THEME.put("Reverse", "#d5a6bd");
+			HEX_THEME.put("Hinder", "#a6c29b");
+			HEX_THEME.put("Relocate", "#d33ed2");
+			HEX_THEME.put("Creation", "#00ffff");
+			HEX_THEME.put("Change", "#f7007a");
+			HEX_THEME.put("Opportunity", "#4ca7fa");
+			HEX_THEME.put("Destruction", "#73a6b3");
+			HEX_THEME.put("Scale", "#d9d9d9");
+			HEX_THEME.put("Reroll", "#d9ead3");
+			HEX_THEME.put("Constant", "#c9daf8");
+		}
+		else { // use the simplified colors
 			HEX_THEME.put("Gold", "#ffff00");
 			HEX_THEME.put("Steal", "#ffff00");
 			HEX_THEME.put("Gain", "#ffff00");
@@ -105,22 +121,6 @@ public class Item {
 			HEX_THEME.put("Change", "#00ffff");
 			HEX_THEME.put("Opportunity", "#00ffff");
 			HEX_THEME.put("Destruction", "#00ffff");
-			HEX_THEME.put("Scale", "#d9d9d9");
-			HEX_THEME.put("Reroll", "#d9ead3");
-			HEX_THEME.put("Constant", "#c9daf8");
-		}
-		else {
-			HEX_THEME.put("Gold", "#f1c232");
-			HEX_THEME.put("Steal", "#ee560b");
-			HEX_THEME.put("Gain", "#c4d313");
-			HEX_THEME.put("Mobility", "#43e243");
-			HEX_THEME.put("Reverse", "#d5a6bd");
-			HEX_THEME.put("Hinder", "#a6c29b");
-			HEX_THEME.put("Relocate", "#d33ed2");
-			HEX_THEME.put("Creation", "#00ffff");
-			HEX_THEME.put("Change", "#3d3df0");
-			HEX_THEME.put("Opportunity", "#4ca7fa");
-			HEX_THEME.put("Destruction", "#73a6b3");
 			HEX_THEME.put("Scale", "#d9d9d9");
 			HEX_THEME.put("Reroll", "#d9ead3");
 			HEX_THEME.put("Constant", "#c9daf8");
@@ -138,11 +138,11 @@ public class Item {
 				);
 	}
 	
-	public Item(int ItemID,
-			String ItemName,
-			int ItemCost,
-			String[] ItemDesc, // raw string, split to String[] ItemDesc after
-			String ItemBlurb,
+	public Item(int ItemID, // 0
+			String ItemName, // 1
+			int ItemCost, // 2
+			String[] ItemDesc, // raw string, split to String[] ItemDesc after // 3
+			String ItemBlurb, // 4
 			String ItemRange,
 			String ItemType,
 			String[] ItemTheme,
@@ -162,7 +162,6 @@ public class Item {
 		this.ItemTier = ItemTier;
 		this.ItemVersion = ItemVersion;
 		this.ItemComplexity = ItemComplexity;
-
 		this.ItemHtml = createHtml();
 		this.ItemPlain = this.createPlain();
 	}
@@ -171,29 +170,48 @@ public class Item {
 		return ItemName;
 	}
 	
+	/* Method which prints an Item in fancy format, including:
+	 * Name + Tier
+	 * Blurb
+	 * Cost
+	 * Desc (and its lines)
+	 * Type
+	 * Theme (split between "/")
+	 * Version
+	 * 
+	 * NOT included:
+	 * ID
+	 * Complexity
+	 * Html
+	 * Plain
+	 */
+	
 	public void fullPrint() {
 		
-		try {
+		try { // try getting the respective color based on ItemTier
 			System.out.println("Item Name: " + ItemName + ANSI_TIER[ItemTier] + " [Tier " + ItemTier + "]" + ANSI_RESET);
 			
-		} catch (Exception e) {
+		} catch (Exception e) { // if the ItemTier is invalid, don't add color
 			System.out.println("Item Name: " + ItemName + " [Tier " + ItemTier + "]");
 		}
-		System.out.println("- Cost: " + ItemCost);
 		
+		if (!ItemBlurb.isEmpty()) { // print the blurb if it exists
+			System.out.println("- " + ItemBlurb);
+		}
+		
+		System.out.println("- Cost: " + ItemCost);
 		System.out.println("- Description: ");
 		
-		// blurb printing variables
-		int cutOff = 75; // cutoff range (CHANGEABLE)
-		
-		int blurbLength; // holds the length of the blurb
-		String blurbSlice = null; // holds blurb substring
-		int startIndex = 0; // starting index of substring
-		int endIndex; // end index of substring
-		int maxDivisions; // number of times blurb can get divided
+//		// blurb printing variables
+//		int cutOff = 75; // cutoff range (CHANGEABLE)
+//		
+//		int blurbLength; // holds the length of the blurb
+//		String blurbSlice = null; // holds blurb substring
+//		int startIndex = 0; // starting index of substring
+//		int endIndex; // end index of substring
+//		int maxDivisions; // number of times blurb can get divided
 		
 		// print ItemDesc
-		
 		for (String ItemDescLine : ItemDesc) {
 			System.out.println("\t- " + ItemDescLine);
 		}
@@ -201,6 +219,7 @@ public class Item {
 		System.out.println("- Range: " + ItemRange);
 		System.out.println("- Type: " + ANSI_THEME.get(ItemType) + ItemType + ANSI_RESET);
 		
+		// used before if ItemType color doesn't exist (Item/Hazard)
 //		if (ANSI_THEME.get(ItemType) == null) {
 //			System.out.println("- Type: " + ANSI_THEME.get("Hazard") + ItemType + ANSI_RESET);
 //		}
@@ -223,13 +242,6 @@ public class Item {
 		System.out.println();
 	} // fullPrint()
 	
-	/* 
-	 * @param shopList
-	 * 
-	 * 
-	 */
-	
-	
 	public String createPlain() { // getPlain()
 		/* GOAL TO PRINT:
 		 * 
@@ -247,49 +259,42 @@ public class Item {
 		 * 
 		 */
 		
-		String[] variableArray = new String[7];
+		String plainHolder = "";
 		String strTemp;
-		String[] strArrayTemp;
 		
 		// 0 = ItemName
 		// print the RGB_ARRAY into span style = color format
 		strTemp = "Item Name: " + ItemName;
 		strTemp += " [Tier " + ItemTier + "]" + "\r\n";
 		
-		variableArray[0] = strTemp;
+		plainHolder += strTemp;
+		
+		// 0 = ItemBlurb
+		if (!ItemBlurb.isEmpty()) {
+			strTemp = "- " + ItemBlurb + "\r\n";
+			plainHolder += strTemp;
+		}
 		
 		// 1 = ItemCost
 		strTemp = "- Cost: " + ItemCost + "\r\n";
-		variableArray[1] = strTemp;
-		
+		plainHolder += strTemp;
 		
 		// 2 = ItemDesc
 		strTemp = "- Description: " + "\r\n";
 		
-//		if (ItemDesc.contains("<br>")) { // if ItemDesc has "<br>" aka multiple lines
-//			strArrayTemp = ItemDesc.split("<br>");
-//			
-//			for (String element : strArrayTemp) {
-//				strTemp += "\t- " + element + "\r\n";
-//			}
-//			
-//		}
-//		else { // otherwise print like normal
-//			 strTemp += "\t- " + ItemDesc + "\r\n";
-//		}
 		for (String ItemDescLine : ItemDesc) {
 			strTemp += "\t- " + ItemDescLine + "\r\n";
 		}
 		
-		variableArray[2] = strTemp;
+		plainHolder += strTemp;
 		
 		// 3 = ItemRange
 		strTemp = "- Range: " + ItemRange + "\r\n";
-		variableArray[3] = strTemp;
+		plainHolder += strTemp;
 		
 		// 4 = ItemType
 		strTemp = "- Type: " + ItemType + "\r\n";
-		variableArray[4] = strTemp;
+		plainHolder += strTemp;
 		
 		// 5 = ItemTheme array
 		strTemp = "- Theme: ";
@@ -302,23 +307,16 @@ public class Item {
 		}
 		strTemp += "\r\n";
 		
-		variableArray[5] = strTemp;
+		plainHolder += strTemp;
 		
 		// 6 = ItemVersion and blank line
 		strTemp = "- Version: " + ItemVersion + "\r\n";
-		variableArray[6] = strTemp;
+		plainHolder += strTemp;
 		
 		// merge all the variableArray to strTemp
 		strTemp = ""; // reset strTemp
 		
-		for (String element : variableArray) { // merge variableArray to strTemp
-			strTemp += element; // merge all the elements
-		}
-		
-//		System.out.println("PRINTING PLAIN");
-//		System.out.println(strTemp);
-		
-		return strTemp; // return strTemp
+		return plainHolder; // return strTemp
 	} // getPlain()
 	
 	private String[] hexConvert(String[] ItemTheme) {
@@ -339,6 +337,7 @@ public class Item {
             root.put("ItemTierColor", HEX_TIER[ItemTier]);
             root.put("ItemCost", ItemCost);
             root.put("ItemDesc", ItemDesc);
+            root.put("ItemBlurb", ItemBlurb);
             root.put("ItemRange", ItemRange);
             root.put("ItemType", ItemType);
             root.put("ItemTypeColor", HEX_THEME.get(ItemType));

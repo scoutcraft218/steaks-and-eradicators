@@ -1,8 +1,8 @@
 <html>
 <body style="margin:0; padding:0;">
 	<div style="margin:0; padding:0;">Item Name: ${ItemName} <span style="color:${ItemTierColor}">[Tier ${ItemTier}]</span></div>
-    
     <ul style="margin:0; padding-left: 1em;">
+    	<#if ItemBlurb?has_content>  <li style="margin:0; padding:0;">${ItemBlurb}</#if><#t>
         <li style="margin:0; padding:0;">Cost: ${ItemCost}</li>
         <li style="margin:0; padding:0;">Description:
             <ul style="margin:0; padding-left: 1em;">

@@ -23,9 +23,11 @@ public class uniMethod {
 	public static void overload(int amount) { // used to stop infinite loops in case
 		overCounter++;
 		if (overCounter == amount) {
-			System.out.println("this loop has overloaded, activated infinite while loop.");
-			while (true) {
-			}
+			
+			throw new IllegalArgumentException("Overload activated " + amount + " times.");
+//			System.out.println("this loop has overloaded, activated infinite while loop.");
+//			while (true) {
+//			}
 		}
 	}
 	

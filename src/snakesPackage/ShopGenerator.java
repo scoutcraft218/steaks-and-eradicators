@@ -9,6 +9,9 @@ import universalThings.uniMethod;
 import java.util.Random;
 import java.io.File;
 import java.util.Scanner;
+//import java.util.concurrent.Executors; // used for the save thread that activates overtime
+//import java.util.concurrent.ScheduledExecutorService;
+//import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import java.awt.*;
@@ -20,38 +23,58 @@ import java.io.*;
 
 public class ShopGenerator {
 	static Random randGen = new Random(); // nextInt(min include, max exclude)
-	static ArrayList<Item>[] itemTierList; // composed of 5 ArrayList, each holding every ID of the Tier items
-	static ArrayList<Item> itemIDList = new ArrayList<Item>(); // holds every Item based on ID
-	static HashMap<String, Item> itemNameList = new HashMap<String, Item>(); // holds every Item based on name, used in Goal 1
-	static HashMap<String, Item> itemDatabase = new HashMap<String, Item>();
-	
+	static HashMap<String, Item> itemDatabase = new HashMap<String, Item>(); // holds EVERY Item based on ItemName, itemTierList and itemNameList are lesser
+	static ArrayList<Item>[] itemTierList; // ArrayList[3] for each ItemTier, where each index is an ArrayList<Item>
+	static HashMap<String, Item> itemNameList = new HashMap<String, Item>(); // exact same as itemDatabase, except some Items are excluded by ruleComplexity
+
 	static Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	static ItemTransfer itemTrans = new ItemTransfer();
 	
 	final static HashMap<String, String> ANSI_THEME = Item.getAnsiTheme();
 	final static String ANSI_RESET = Item.getAnsiReset();
 	final static String[] ANSI_TIER = Item.getAnsiTier();
+	final static int[] EQUAL_PROB = {1,1,1,1,1,1};
 	
 	public interface ItemGenMethod<T> {
-		Item runGenerate(T pattern, Predicate<Item> parameter);
+		Item runGenerate(T pattern, Predicate<Item> filter);
 	}
 	
 	
-	/* BoundItemGen is really just a preset on how XYZ will
-	 * generate an item, for example:
+	/* BoundItemGen is a helper interface for generating items which says that
+	 * if the method "whatever()" (which is bind() in this case) from some variable
+	 * "chestBound" is called, it must take the parameters of bind() and forward
+	 * it to the runGenerate() method which 100% returns an Item Object.
+	 * 
+	 * An interface is basically an abstract lambda function, so a lambda function
+	 * which doesn't do anything but MUST have a method attached to it (interface aspect)
+	 * which takes its parameters and gives it to runGenerate()
+	 * 
 	 * 
 	 * chestBound = bind(chestProb), uses singleItemGen with only a weighted probability
 	 * shopBound = bind(weightedShopArray), uses singleItemGen also
 	 * startBound = bind(1, item -> (!item.getType().equals("Passive"))), uses customItemGen, T1 with NO passives
 	 * 
 	 */
+	
+	/* boundArray holds the ItemGenType, pattern and filter
+	 * for how to generate an Item for each item in startArray[player X]
+	 * 
+	 * While generating an Item, call boundArray[i].runGenerate() which calls:
+	 * bound1.runGenerate();                // You call the interface method (no args)
+			-> bound1.generateItem(pattern, filter); 
+     			-> bound1.customItemGen(pattern, filter)
+          			-> calls customItemGen
+          				-> bound1 returns Item result from customItemGen
+	 * 
+	 */
+	
 	@FunctionalInterface
 	public interface BoundItemGen {
 	    Item runGenerate();
 	}
 
-	public static <T> BoundItemGen bind(T pattern, Predicate<Item> parameter) {
-	    return () -> generateItem(pattern, parameter);
+	public static <T> BoundItemGen bind(T pattern, Predicate<Item> filter) {
+	    return () -> generateItem(pattern, filter);
 	}
 	
 	public static <T> BoundItemGen bind(T pattern) {
@@ -60,29 +83,28 @@ public class ShopGenerator {
 
 	
 	public static void main(String[] args) throws Exception{
-		/* testing: "Snakes items list_testing.csv"
-		 * official: "Snakes items list_Snake Game item list.csv"
-		 */
+		// File name paths
+		final String ITEM_FileName = "Snakes items list_testing.csv";
+		final String QUEST_FileName = "Snakes items list_Quest List.csv";
+		final File TEMPLATE_Folder = new File("templates");
 		
-		final String ITEMFileName = "Snakes items list_testing.csv";
-		final String QUESTFileName = "Snakes items list_Quest List.csv";
-		final File templateFolder = new File("templates");
+		// Game rules
+		final int Rule_Complexity = 3; // Items excluded from itemNameList based on ItemComplexity
 		
-		final double DISCOUNTRate = 0.66; // the new price of the original item
-		final int ruleComplexity = 3; // what items to include based on complexity
+		// Important variables
+		final int Tier_Amount = 6; // amount of unique ItemTiers (starting from 0)
+		final double Discount_Rate = 0.66; // the discount applied to the Shop
 		
-		
-
 		/* ------------------------------------------------------------------------ */
         /* You should do this ONLY ONCE in the whole application life-cycle:        */
 
         /* Create and adjust the configuration singleton */
         Configuration cfg = new Configuration(Configuration.VERSION_2_3_34);
         try {
-    		if (!(templateFolder.exists() && templateFolder.isDirectory())) { // if the template doesn't exist
+    		if (!(TEMPLATE_Folder.exists() && TEMPLATE_Folder.isDirectory())) { // if the template doesn't exist
     			throw new FileNotFoundException("templateFile Folder not found"); // throw an error
     		}
-        	cfg.setDirectoryForTemplateLoading(templateFolder); // import template file
+        	cfg.setDirectoryForTemplateLoading(TEMPLATE_Folder); // import template file
 		} catch (Exception e) { // catch that error and then print it without crashing the code
 			e.printStackTrace();  // or handle however you'd like
 		}
@@ -95,47 +117,29 @@ public class ShopGenerator {
         cfg.setSQLDateAndTimeTimeZone(TimeZone.getDefault());
 
         /* ------------------------------------------------------------------------ */
-        /* You usually do these for MULTIPLE TIMES in the application life-cycle:   */
-		
-//        Map root = new HashMap();
-        /* Get the template (uses cache internally) */
-//        Template temp = cfg.getTemplate("item_template.ftl");
-
-        /* Merge data-model with template */
-//        Writer out = new OutputStreamWriter(System.out);
-//        StringWriter out = new StringWriter();  // Change this from OutputStreamWriter
-        
-        // import the system Clipboard
+        /* You usually do these for MULTIPLE TIMES in the application life-cycle:   */  
  		
- 		
- 		
-        // Note: Depending on what `out` is, you may need to call `out.close()`.
-        // This is usually the case for file output, but not for servlet output.
-        
- 		
-// 		Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-// 		    System.err.println("Uncaught exception in thread " + thread.getName() + ": " + throwable);
-// 		});
+//		 Threads which somehow trigger on uncaught exceptions
+//		Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+//		    System.err.println("Uncaught exception in thread " + thread.getName() + ": " + throwable);
+//		    System.out.println("code crashjed");
+//		    myScanner.close();
+//		    questScanner.close();
+////		    saveCode(); // or your save/backup logic
+//		});
 //
-// 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-// 		    System.out.println("Shutdown detected. Saving...");
-// 		}));
+//		// Run on shutdown (even clean ones)
+//        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+//            System.out.println("Shutdown hook triggered");
+////            saveCode();
+//        }));
+		
+//        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+//        executor.scheduleAtFixedRate(() -> {
+////            saveCode();
+//            System.out.println("hi");
+//        }, 1, 5, TimeUnit.SECONDS); // saves every 30 seconds
 
- 		
-        /* all primary variables
-         * 
-         * {ItemName}
-         * {ItemTierColor}
-         * {ItemTier}
-         * {ItemCost}
-         * {ItemDesc + lines}
-         * {ItemRange}
-         * {ItemType}
-         * {ItemTheme}
-         * {ItemVersion}
-         * 
-         */
- 		
 		
 		/* ItemGenMethod is an abstract Interface where the lambda method
 		 * MUST use the following parameters:
@@ -146,26 +150,26 @@ public class ShopGenerator {
 		 * In this case, pattern is usually an int (for itemTier) or
 		 * int[] (for weightedProbability[])
 		 * 
-		 * @Predicate<Item> parameter
+		 * @Predicate<Item> filter
 		 * Predicate<Item> is a lambda expression/mini method which you
-		 * put some random parameters that MUST return an Item.
+		 * put some random filters that MUST return an Item.
 		 * 
 		 * In this case, the parameter is usually singleGen or
 		 * customGen variable which returns singleItemGen or customItemGen
 		 * respectively
 		 * 
 		 * singleGen and customGen are 2 ItemGenMethods or lambda expressions
-		 * that MUST use both the pattern and parameter within its parameters.
+		 * that MUST use both the pattern and filter within its parameters.
 		 * 
 		 * When singleGen is called, it returns singleItemGen(pattern)
-		 * When customGen is called, it returns customItemGen(pattern, parameter)
+		 * When customGen is called, it returns customItemGen(pattern, filter)
 		 *  
 		 */
 		
 		/* get rid of the use of singleGen and customGen
 		 * 
-		 * function which only has a pattern and parameter
-		 * custom is used if parameter
+		 * function which only has a pattern and filter
+		 * custom is used if filter
 		 * otherwise only single
 		 * 
 		 * each pattern has both an int and int[]
@@ -175,7 +179,7 @@ public class ShopGenerator {
 		 * 
 		 */
 		
-		ItemGenMethod<Object> singleGen = (pattern, parameter) -> {
+		ItemGenMethod<Object> singleGen = (pattern, filter) -> {
 			if (pattern instanceof Integer) {
 				return singleItemGen((int)pattern);
 			}
@@ -187,47 +191,49 @@ public class ShopGenerator {
 			}
 		};
 		
-		ItemGenMethod<Object> customGen = (pattern, parameter) -> {
+		ItemGenMethod<Object> customGen = (pattern, filter) -> {
 			if (pattern instanceof Integer) {
-				return customItemGen((int)pattern, parameter);
+				return customItemGen((int)pattern, filter);
 			}
 			else if (pattern instanceof int[]){
-				return customItemGen((int[])pattern, parameter);
+				return customItemGen((int[])pattern, filter);
 			}
 			else {
 				throw new IllegalArgumentException("ItemGenMethod customGen, Invalid pattern type: " + pattern.getClass());
 			}
 		};
 		
-		File itemFile = new File(ITEMFileName); // holds the File for all the items
-	
+		// Declare the File variables
+		File itemFile = new File(ITEM_FileName); // turns ITEM_FileName into an actual File
 		Scanner fileScanner = new Scanner(itemFile); // Scanner for the itemFile
 		
-		// temporary variables
-		int weightedTemp;
-		Item itemTemp = null; // temporary Item variable used in the Menu
-		String strTemp = null;
-		String strTemp2 = null;
-//		String[] strTempFinal = new String[1]; // used specifically in THEMED chest loot since local variables in 
+		// Declare all temporary variables
+//		int weightedTemp;
+//		Item itemTemp = null; // temporary Item variable used in the Menu
+//		String strTemp = null;
+//		String strTemp2 = null;
+//		int intTemp = 0;
+//		int intTemp2 = 0;
 		
-		int intTemp = 0;
-		int intTemp2 = 0;
+//		String strInput;
+		Item itemImport;
+		String rawLine;
 		
-		// Goal 1: import all items
-		String[] csvArray; // csvArray holds the split
+		// Import all Items from itemFile into itemDatabase, itemNameList and itemTierList
+		String[] csvArray; // csvArray holds each split(";") line inside of fileScanner
 		
-		itemTierList = new ArrayList[5]; // 0 = exclusive, 1-3 = tier 1-3, 4 = artifacts
-		for (int i = 0; i < 5; i++) { // initiate every ArrayList in itemIDList
+		itemTierList = new ArrayList[Tier_Amount]; // 0 = exclusive, 1-3 = tier 1-3, 4 = artifacts
+		for (int i = 0; i < Tier_Amount; i++) { // Initialize every ArrayList in itemTierList
 			itemTierList[i] = new ArrayList<>();
 		}
 		
 		fileScanner.nextLine(); // skip Line no.1 which contains the headers
 		while (fileScanner.hasNextLine()) { // for each line in the txt document
-			strTemp = fileScanner.nextLine(); // stores the raw line in string
+			rawLine = fileScanner.nextLine(); // stores the raw line in string
 			
-			csvArray = strTemp.split(";"); // splits the stored line as an array
+			csvArray = rawLine.split(";"); // splits the stored line as an array
 			
-			itemTemp = new Item (
+			itemImport = new Item (
 					Integer.parseInt(csvArray[0]), // ID
 					csvArray[1], // name
 					Integer.parseInt(csvArray[2]), // cost
@@ -243,16 +249,15 @@ public class ShopGenerator {
 			
 			uniMethod.printArray(csvArray);
 			
-			itemIDList.add(itemTemp);
-			itemDatabase.put(itemTemp.getName().toLowerCase(), itemTemp);
+			itemDatabase.put(itemImport.getName().toLowerCase(), itemImport);
 			
-			// exclude the items from the actual lootpool
-			if (itemTemp.getComplexity() <= ruleComplexity) {
+			// Exclude items based on Rule_Complexity
+			if (itemImport.getComplexity() <= Rule_Complexity) {
 				// place in ItemNameList HashMap
-				itemNameList.put(itemTemp.getName().toLowerCase(), itemTemp);
+				itemNameList.put(itemImport.getName().toLowerCase(), itemImport);
 				
 				// based on itemTemp's Tier, place in itemTierList
-				itemTierList[itemTemp.getTier()].add(itemTemp);
+				itemTierList[itemImport.getTier()].add(itemImport);
 			}
 			
 		} // while loop
@@ -260,37 +265,24 @@ public class ShopGenerator {
 		fileScanner.close();
 		// Now: allItems now holds every Item
 		
-		// Goal 2: Create an ID array based on every Type and Theme
-		// Next: Count all the Item Types
-		
-				
-//		for (int i = 0; i < Item.getTotal(); i++) { // repeat for every possible item
-//			// check for ruleComplexity
-//			
-//			if (itemTemp.getComplexity() <= ruleComplexity) {
-//				itemTemp = itemIDList.get(i); // get ID no.i
-//				// based on item Tier, place itemTemp
-//				
-//			}			
-//		}
-		// Now: itemTypeTemp contains the ID for each of the special items
-		
-		// Goal 3: Create the quests and place them in an Array
-		File questFile = new File(QUESTFileName);
-		HashMap<String, Quest> questNameList = new HashMap<String, Quest>(); // stores Quests based on Name (lowercase)
+		// Load all Quests and place them in an Array
+		File questFile = new File(QUEST_FileName);
+		HashMap<String, Quest> questNameList = new HashMap<String, Quest>(); // stores Quests based on QuestName (lowercase)
 		Scanner questScanner = new Scanner(questFile);
 		Quest questTempLoad;
 		
 		// initialize questTierList
-		ArrayList<Quest>[] questTierList = new ArrayList[3]; // holds Quests based on its Tiers
+		ArrayList<Quest>[] questTierList = new ArrayList[3]; // holds Quests based on QuestTier
 		for (int i = 0; i < 3; i++) { // initiate every ArrayList in itemIDList
 			questTierList[i] = new ArrayList<>();
 		}
 		
-		questScanner.nextLine(); // skip first row
-		while (questScanner.hasNextLine()) {
-			strTemp = questScanner.nextLine(); // stores the raw csv line as String
-			csvArray = strTemp.split(";"); // splits the csv line as an Array
+		questScanner.nextLine(); // skip the first row in questFile
+		
+		// Iterate through questFile to create and save the Quests
+		while (questScanner.hasNextLine()) { 
+			rawLine = questScanner.nextLine(); // stores the raw csv line as String
+			csvArray = rawLine.split(";"); // splits the csv line as an Array
 			
 			questTempLoad = new Quest(
 					Integer.parseInt(csvArray[0]), // QuestID
@@ -308,38 +300,53 @@ public class ShopGenerator {
 		
 		// Goal: load the menu
 		Scanner myScanner = new Scanner(System.in);
-		int intInput; // scanner int input
-		String strInput; // scanner String input
+		int menuID = -1; // set to -1 to be initialized
+
 		
+		// Shop variables
 //		ArrayList<Item> shopList = new ArrayList<Item>(); // the items stored in the shop
 		Item[] shopList = new Item[5];
 		int refreshCounter = 0; // used in 4. refresh shop
-		
-		int firstTile; // used in 8. distance calculator
-		int secondTile;
-		
-//		Item[] chestArray = new Item[3]; // used for weighted chest
-//		int chestTotal = 4; // number of items in the chest
-		
 		int shopTier = 0; // the tier of the Shop, used to unlock more items
-		
-		boolean yesDupes; // used in lots of generate multiple things with no dupe
 		boolean discountPresent = true; // tracks when the Discount shop item is purchased
 		
-//		// blurb printing variables
-//		int cutOff = 75; // cutoff range (CHANGEABLE)
-//		
-//		String itemBlurb;
-//		int blurbLength; // holds the length of the blurb
-//		String blurbSlice = null; // holds blurb substring
-//		int startIndex = 0; // starting index of substring
-//		int endIndex; // end index of substring
-//		int maxDivisions; // number of times blurb can get divided
+		int[][] weightedShopArray = new int[4][];{ // holds each 4 shopTiers of probability
+			weightedShopArray[0] = new int[]{1,0,0,0,0}; // fallback
+			weightedShopArray[1] = new int[]{0,85,15,0,0};
+			weightedShopArray[2] = new int[]{0,43,42,15,0};
+			weightedShopArray[3] = new int[]{0,5,5,5,1};
+		}
 		
+		BoundItemGen[] shopBound = new BoundItemGen[4]; {
+			for (int i = 0; i < 4; i++) {
+				shopBound[i] = bind(weightedShopArray[i]);
+			}
+		}
+		
+		// unclear variables
+		boolean yesDupes; // used in generating Quests to generate multiple things with no dupe
+		List<AbstractMap.SimpleEntry<Item, Double>> pairList = new ArrayList<>(); // item search index
+		
+		
+		// Chest variables
 		int[] chestProb = {0,20,60,20,0}; // used for generating chests
 		int[] questProbTemp;
 		BoundItemGen chestBound = bind(chestProb);
 		
+		// Quest variables
+		Quest questTemp;
+		int questTierTemp;
+		Quest[] questBoard = new Quest[4]; // 4 quests in the quest board
+		String[] questReward = new String[4]; // holds the quest reward OUTCOMES
+		
+		int quantityReward; // number of RANDOM items
+		int tierReward; // tier of RANDOM items
+		
+		String[] bonusReward = new String[4];
+		String questDescTemp;
+		
+		String bonusSpace = // bonusSpace used for nice Quest formatting
+				"                                                            ";
 		// probability of generating a Random Tiered Quest based on shopTier
 		int[][] questProbTier = new int[4][3];{
 			questProbTier[0] = new int[]{0,0,1}; // the fallback is all T3 quests
@@ -388,7 +395,6 @@ public class ShopGenerator {
 			};
 		}
 		
-		
 		int questRewardProb[][] = new int[4][]; { // create a local code block
 			// access questRewardProb which exists at a higher scope, then update the variable
 			
@@ -398,86 +404,31 @@ public class ShopGenerator {
 			questRewardProb[3] = new int[] {12,12,8,1,1}; // probability of picking a REWARD for a T1 Quest
 		}
 		
-		int[][] weightedShopArray = new int[4][];{ // holds each 4 shopTiers of probability
-			weightedShopArray[0] = new int[]{1,0,0,0,0}; // fallback
-			weightedShopArray[1] = new int[]{0,85,15,0,0};
-			weightedShopArray[2] = new int[]{0,43,42,15,0};
-			weightedShopArray[3] = new int[]{0,5,5,5,1};
-		}
 		
-		BoundItemGen[] shopBound = new BoundItemGen[4]; {
-			for (int i = 0; i < 4; i++) {
-				shopBound[i] = bind(weightedShopArray[i]);
-			}
-		}
-		
-		Quest questTemp;
-		int questTierTemp;
-		Quest[] questBoard = new Quest[4]; // 4 quests in the quest board
-		String[] questReward = new String[4]; // holds the quest reward OUTCOMES
-		
-		int quantityReward; // number of RANDOM items
-		int tierReward; // tier of RANDOM items
-		
-		String[] bonusReward = new String[4];
-		String questDescTemp;
-		
-		String bonusSpace = // bonusSpace used for nice Quest formatting
-				"                                                            ";
-		
-		
-		// starting item generation
+		// Starting item variables
 		Item[][] startArray = new Item[3][4]; // 3 players, 4 length/starting items
 		boolean[][] startRefreshed = new boolean[3][4]; // boolean for already refreshed items
 		
-		/* boundArray holds the ItemGenType, pattern and parameter
-		 * for how to generate an Item for each item in startArray[player X]
-		 * 
-		 * While generating an Item, call boundArray[i].runGenerate() which calls:
-		 * bound1.runGenerate();                // You call the interface method (no args)
- 			-> gen.runGenerate(pattern, parameter); 
-         			-> executes singleGenLogic
-              			-> calls singleItemGen(...)
-		 * 
-		 */
-		
-		// 
 		BoundItemGen[] startBound = new BoundItemGen[4]; {
 			startBound[0] = bind(1, item -> (!item.getType().equals("Passive")));
 			startBound[1] = bind(1, item -> (!item.getType().equals("Passive")));
 			startBound[2] = bind(2, item -> (!item.getType().equals("Passive")));
 			startBound[3] = bind(2, item -> (!item.getType().equals("Passive")));
 		}
-		
-		// item search index
-		List<AbstractMap.SimpleEntry<Item, Double>> pairList = new ArrayList<>();
-
-		// Catch uncaught exceptions
-//		Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-//		    System.err.println("Uncaught exception in thread " + thread.getName() + ": " + throwable);
-//		    System.out.println("code crashjed");
-//		    myScanner.close();
-//		    questScanner.close();
-////		    saveCode(); // or your save/backup logic
-//		});
-//		
-//		// Run on shutdown (even clean ones)
-//        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//            System.out.println("Shutdown hook triggered");
-////            saveCode();
-//        }));
-		
-//        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-//        executor.scheduleAtFixedRate(() -> {
-//            saveCode();
-//        }, 1, 30, TimeUnit.SECONDS); // saves every 30 seconds
         
-		System.out.println("____   ____                  .__                       ____       ______             __________        .__                                ____ ___            .___       __          \r\n"
-				+ "\\   \\ /   /___________  _____|__| ____   ____   ___  _/_   |     /  __  \\            \\______   \\_____  |  | _____    ____   ____  ____   |    |   \\______   __| _/____ _/  |_  ____  \r\n"
-				+ " \\   Y   // __ \\_  __ \\/  ___/  |/  _ \\ /    \\  \\  \\/ /|   |     >      <    ______   |    |  _/\\__  \\ |  | \\__  \\  /    \\_/ ___\\/ __ \\  |    |   /\\____ \\ / __ |\\__  \\\\   __\\/ __ \\ \r\n"
-				+ "  \\     /\\  ___/|  | \\/\\___ \\|  (  <_> )   |  \\  \\   / |   |    /   --   \\  /_____/   |    |   \\ / __ \\|  |__/ __ \\|   |  \\  \\__\\  ___/  |    |  / |  |_> > /_/ | / __ \\|  | \\  ___/ \r\n"
-				+ "   \\___/  \\___  >__|  /____  >__|\\____/|___|  /   \\_/  |___| /\\ \\______  /            |______  /(____  /____(____  /___|  /\\___  >___  > |______/  |   __/\\____ |(____  /__|  \\___  >\r\n"
-				+ "              \\/           \\/               \\/               \\/        \\/                    \\/      \\/          \\/     \\/     \\/    \\/            |__|        \\/     \\/          \\/ ");
+		Item[] tutorialArray = new Item[]{
+				itemDatabase.get("# in a bottle"),
+				itemDatabase.get("banana peel"),
+				itemDatabase.get("directional sign post"),
+				itemDatabase.get("prickly pear")
+		};
+		
+		System.out.println("____   ____                  .__                       ____    ________            ________                              .__                                   .___    _____                        \r\n"
+				+ "\\   \\ /   /___________  _____|__| ____   ____   ___  _/_   |  /   __   \\           \\______ \\ ___.__. ____ _____    _____ |__| ____   ______ _____    ____    __| _/   /     \\ _____    ____ _____   \r\n"
+				+ " \\   Y   // __ \\_  __ \\/  ___/  |/  _ \\ /    \\  \\  \\/ /|   |  \\____    /   ______   |    |  <   |  |/    \\\\__  \\  /     \\|  |/ ___\\ /  ___/ \\__  \\  /    \\  / __ |   /  \\ /  \\\\__  \\  /    \\\\__  \\  \r\n"
+				+ "  \\     /\\  ___/|  | \\/\\___ \\|  (  <_> )   |  \\  \\   / |   |     /    /   /_____/   |    `   \\___  |   |  \\/ __ \\|  Y Y  \\  \\  \\___ \\___ \\   / __ \\|   |  \\/ /_/ |  /    Y    \\/ __ \\|   |  \\/ __ \\_\r\n"
+				+ "   \\___/  \\___  >__|  /____  >__|\\____/|___|  /   \\_/  |___| /\\ /____/             /_______  / ____|___|  (____  /__|_|  /__|\\___  >____  > (____  /___|  /\\____ |  \\____|__  (____  /___|  (____  /\r\n"
+				+ "              \\/           \\/               \\/               \\/                            \\/\\/         \\/     \\/      \\/        \\/     \\/       \\/     \\/      \\/          \\/     \\/     \\/     \\/ ");
 		System.out.println("99. test special");
 		System.out.println("0. print the menu again");
 		System.out.println("---------------");
@@ -486,7 +437,7 @@ public class ShopGenerator {
 		System.out.println("3. open the shop");
 		System.out.println("4. purchase an item from shop");
 		System.out.println("5. refresh shop");
-		System.out.println("6. view tier prices");
+		System.out.println("6. overwrite a shop item");
 		System.out.println("---------------");
 		System.out.println("7. purchase specific dice face");
 		System.out.println("8. view all dice");
@@ -499,138 +450,119 @@ public class ShopGenerator {
 		System.out.println("13. gen chest loot");
 		System.out.println("14. gen THEMED chest loot");
 		System.out.println("15. gen all Tier items");
+		System.out.println("16. custom gen amount");
+		System.out.println("17. inquire an item");
 		System.out.println("---------------");
-		System.out.println("16. inquire an item");
-		System.out.println("17. html for most recent itemTemp");
-		System.out.println("18. what to do in turn");
+		System.out.println("18. generate starter items");
+		System.out.println("19. print the starter items");
+		System.out.println("20. refresh a specific item");
+		System.out.println("21. Clipboard the starting items");
 		System.out.println("---------------");
-		System.out.println("19. generate starter items");
-		System.out.println("20. print the starter items");
-		System.out.println("21. refresh a specific item");
-		System.out.println("22. Clipboard the starting items");
-		System.out.println("---------------");
-		System.out.println("23. print and Clipboard all artifacts");
-		System.out.println("24. generate tutorial items");
+		System.out.println("22. print and Clipboard all artifacts");
+		System.out.println("23. generate tutorial items");
 		System.out.println("---------------");
 		System.out.println("Open the Shop\r\n"
 				+ "- Buy Dice or Dice faces\r\n"
 				+ "- Open Quest Board\r\n"
-				+ "- Gain another Inventory slot 15 Gold (max 2 times for 7 total)\r\n"
-				+ "- Destroy 1 held Curse for 20 Gold ONCE\r\n"
+//				+ "- Gain another Inventory slot 15 Gold (max 2 times for 7 slots total)\r\n"
+				+ "- Upgrade Max Mana capacity by 25 for 15 Gold\r\n"
 				+ "- Upgrade Artifact/Shop Tier\r\n"
 				+ "	- T2 = 15 Gold\r\n"
 				+ "	- T3 = 25 Gold");
 		
 		
 		while (true) { // menu loop
-			intInput = myScanner.nextInt();
-			
-			if (intInput == 99) { // do something specific
-//				Item[] itemArray = new Item[3];
-//				multiItemGen(itemArray, singleGen, 3, null);
-//				for (Item element : itemArray) {
-//					element.fullPrint();
-//				}
-				
-//				chestOpen(3, 0, customGen, item -> (!item.getType().equals("Artifact")));
-//				chestOpen(3, new int[]{20,20,60,20,0}, customGen, item -> (item.getVersion().equals("v1.1") && !item.getType().equals("Artifact")));
-//				System.out.println(ANSI_T1 + "[Tier 1]");
-				String htmlTemp = "";
-				String plainTemp = "";
-				
-				itemTemp = itemNameList.get("blunderbuss");
-				htmlTemp += itemTemp.getHtml();
-				
-				htmlTemp += "\n";
-				
-				itemTemp = itemNameList.get("snake flute");
-				htmlTemp += itemTemp.getHtml();
-				
-				itemTrans.setHtml(htmlTemp);
-				System.out.println(htmlTemp);
-				
-				clipboard.setContents(itemTrans, null);
-				System.out.println("successfully set clipboard");
+			try {
+				System.out.println("Type the MenuID: (last menuID was: " + menuID + ")");
+				menuID = myScanner.nextInt();
+			} catch (InputMismatchException e) {
+				System.out.println("Looks like you mistyped something, try again.");
+				myScanner.nextLine();
+				continue;
+			}
+
+			if (menuID == 99) { // do something specific
+				refreshCounter -= 1; // remove 1 from the refresh counter
 				
 			}
 			
-			else if (intInput == 0) {
-				System.out.println("99. test special");
-				System.out.println("0. print the menu again");
-				System.out.println("---------------");
-				System.out.println("1. set shop privilege");
-				System.out.println("2. create a new shop");
-				System.out.println("3. open the shop");
-				System.out.println("4. purchase an item from shop");
-				System.out.println("5. refresh shop");
-				System.out.println("6. view tier prices");
-				System.out.println("7. purchase specific dice face");
-				System.out.println("8. view all dice");
-				System.out.println("9. generate quest board");
-				System.out.println("10. easily print a quest");
-				System.out.println("---------------");
-				System.out.println("11. generate random number 144");
-				System.out.println("12. calculate distance");
-				System.out.println("---------------");
-				System.out.println("13. gen chest loot");
-				System.out.println("14. gen THEMED chest loot");
-				System.out.println("15. gen all Tier items");
-				System.out.println("---------------");
-				System.out.println("16. inquire an item");
-				System.out.println("17. html for most recent itemTemp");
-				System.out.println("18. what to do in turn");
-				System.out.println("---------------");
-				System.out.println("19. generate starter items");
-				System.out.println("20. print the starter items");
-				System.out.println("21. refresh a specific item");
-				System.out.println("22. Clipboard the starting items");
-				System.out.println("---------------");
-				System.out.println("23. print all artifacts");
-				System.out.println("24. Clipboard all artifacts");
-				System.out.println("25. generate tutorial items");
-				System.out.println("---------------");
-				System.out.println("Open the Shop\r\n"
-						+ "- Buy Dice or Dice faces\r\n"
-						+ "- Open Quest Board\r\n"
-						+ "- Gain another Inventory slot 15 Gold (max 2 times for 7 total)\r\n"
-						+ "- Destroy 1 held Curse for 20 Gold ONCE\r\n"
-						+ "- Upgrade Artifact/Shop Tier\r\n"
-						+ "	- T2 = 15 Gold\r\n"
-						+ "	- T3 = 25 Gold");
+			else if (menuID == 0) {
+                System.out.println("____   ____                  .__                       ____    ________            ________                              .__                                   .___    _____                        \r\n"
+                        + "\\   \\ /   /___________  _____|__| ____   ____   ___  _/_   |  /   __   \\           \\______ \\ ___.__. ____ _____    _____ |__| ____   ______ _____    ____    __| _/   /     \\ _____    ____ _____   \r\n"
+                        + " \\   Y   // __ \\_  __ \\/  ___/  |/  _ \\ /    \\  \\  \\/ /|   |  \\____    /   ______   |    |  <   |  |/    \\\\__  \\  /     \\|  |/ ___\\ /  ___/ \\__  \\  /    \\  / __ |   /  \\ /  \\\\__  \\  /    \\\\__  \\  \r\n"
+                        + "  \\     /\\  ___/|  | \\/\\___ \\|  (  <_> )   |  \\  \\   / |   |     /    /   /_____/   |    `   \\___  |   |  \\/ __ \\|  Y Y  \\  \\  \\___ \\___ \\   / __ \\|   |  \\/ /_/ |  /    Y    \\/ __ \\|   |  \\/ __ \\_\r\n"
+                        + "   \\___/  \\___  >__|  /____  >__|\\____/|___|  /   \\_/  |___| /\\ /____/             /_______  / ____|___|  (____  /__|_|  /__|\\___  >____  > (____  /___|  /\\____ |  \\____|__  (____  /___|  (____  /\r\n"
+                        + "              \\/           \\/               \\/               \\/                            \\/\\/         \\/     \\/      \\/        \\/     \\/       \\/     \\/      \\/          \\/     \\/     \\/     \\/ ");
+                System.out.println("99. test special");
+                System.out.println("0. print the menu again");
+                System.out.println("---------------");
+                System.out.println("1. set shop privilege");
+                System.out.println("2. create a new shop");
+                System.out.println("3. open the shop");
+                System.out.println("4. purchase an item from shop");
+                System.out.println("5. refresh shop");
+                System.out.println("6. overwrite a shop item");
+                System.out.println("---------------");
+                System.out.println("7. purchase specific dice face");
+                System.out.println("8. view all dice");
+                System.out.println("9. generate quest board");
+                System.out.println("10. easily print a quest");
+                System.out.println("---------------");
+                System.out.println("11. generate random number 144");
+                System.out.println("12. calculate distance");
+                System.out.println("---------------");
+                System.out.println("13. gen chest loot");
+                System.out.println("14. gen THEMED chest loot");
+                System.out.println("15. gen all Tier items");
+                System.out.println("16. custom gen amount");
+                System.out.println("17. inquire an item");
+                System.out.println("---------------");
+                System.out.println("18. generate starter items");
+                System.out.println("19. print the starter items");
+                System.out.println("20. refresh a specific item");
+                System.out.println("21. Clipboard the starting items");
+                System.out.println("---------------");
+                System.out.println("22. print and Clipboard all artifacts");
+                System.out.println("23. generate tutorial items");
+                System.out.println("---------------");
+                System.out.println("Open the Shop\r\n"
+                        + "- Buy Dice or Dice faces\r\n"
+                        + "- Open Quest Board\r\n"
+        //				+ "- Gain another Inventory slot 15 Gold (max 2 times for 7 slots total)\r\n"
+                        + "- Upgrade Max Mana capacity by 25 for 15 Gold\r\n"
+                        + "- Upgrade Artifact/Shop Tier\r\n"
+                        + "	- T2 = 15 Gold\r\n"
+                        + "	- T3 = 25 Gold");
 			} // input 0
 			
-			if (intInput == 1) { // set shop privilege
-				System.out.println("input the tier privilege:");
-				shopTier = myScanner.nextInt();
-				System.out.println("remember to create a store now");
+			if (menuID == 1) { // set shop privilege
+				try {
+					System.out.println("Input the Shop's tier:");
+					shopTier = myScanner.nextInt();
+				} catch (InputMismatchException e) {
+					System.out.println("Looks like you mistyped something, try again.");
+					myScanner.nextLine();
+					continue;
+				}
 				
-//				// update the shopSize the moment Shop Tier is bought/upgraded
-//				if (shopTier == 1) { // tier 1 shop
-//					shopSize = 5;
-//				}
-//				else if (shopTier == 2) { // tier 2 shop
-//					shopSize = 6;
-//				}
-//				else if (shopTier == 3) {
-//					shopSize = 7;
-//				}
-////				else { // tier 0 shop
-////					// do NOT change the shopSize
-////					
-////					//accessing tier 0 shop would be set Tier to 1-3, and then 0 AFTER
-////				}
+				if (shopTier <= -1 || shopTier >= 4) {
+					System.out.println("Unfortunately that shopTier doesn't exist.");
+					continue;
+				}
+				
+				System.out.println("shopTier is now (" + shopTier + "), remember to create a store now.");
+				
 			} // input 1
 			
-			else if (intInput == 2) { // create a new shop
+			else if (menuID == 2) { // create a new shop
 				discountPresent = true; // re-add the discount for last item
 				multiItemGen(shopList, shopBound[shopTier]);
 				
-//				multiItemGen(shopSize, shopList, weightedShopArray[shopTier], singleGen, null); // fill the shopList with items
-				refreshCounter = 1; // set the initial refresh cost
+				refreshCounter = 1; // reset the initial refresh cost
 				System.out.println("shop successfully created");
 			} // input 2
 			
-			else if (intInput == 3) { // open a new shop
+			else if (menuID == 3) { // open a new shop
 				// Next: Print the shop items
 				System.out.println("\r\n"
 						+ "   __    __  .__              _   /\\         .__                     __   \r\n"
@@ -644,75 +576,106 @@ public class ShopGenerator {
 				System.out.println("⋘ ─────────────────────── < ($) > ─────────────────────── ⋙");
 				
 				// print each Item in ShopList in Shop format
-				fullPrintShop(shopList, discountPresent, DISCOUNTRate);
+				fullPrintShop(shopList, discountPresent, Discount_Rate);
 				
 				// Next: Print the Refresh cost
 				System.out.println("Refresh Cost: " + fib(refreshCounter - 1));
 				
 			} // input 3
 			
-			else if (intInput == 4) { // purchase an item from shop
-				System.out.println("which item: ");
-				intInput = myScanner.nextInt();
+			else if (menuID == 4) { // purchase an item from shop
+				int itemSlot = -1;
+				Item purchasedItem;
 				
-				// get the respective item
+				
+				
+				// Retrieve the respective item from the Shop
 				try { // print out the purchased item
-					itemTemp = shopList[intInput - 1];		
-					System.out.println("-- Thank you for your purchase ~ --");
-					itemTemp.fullPrint();
-					copyClipboard(itemTemp);
-					
-					// switch the old purchased item index for a new item
-					shopList[intInput - 1] = noDupeItemGen(shopList, shopBound[shopTier]);
-				} catch (Exception e) {
-					System.out.println("Unfortunately that item isn't available.");
+					System.out.println("which item: ");
+					itemSlot = myScanner.nextInt() - 1; // 0 index the itemSlot
+				} catch (InputMismatchException e) {
+					System.out.println("Looks like you mistyped something, try again.");
+					myScanner.nextLine();
+					continue;
 				}
+				
+				if (itemSlot < 0 || itemSlot > 5) {
+					System.out.println("Unfortunately that itemSlot isn't available.");
+					continue;
+				}
+				
+				purchasedItem = shopList[itemSlot];
+				System.out.println("-- Thank you for your purchase ~ --");
+				purchasedItem.fullPrint();
+				copyClipboard(purchasedItem);
+				
+				// switch the old purchased item index for a new item
+				shopList[itemSlot] = noDupeItemGen(shopList, shopBound[shopTier]);
 				
 				// if the FIRST item was purchased
-				if (intInput == 1) {
-					// the 50% discount has been used up
+				if (itemSlot == 0) {
 					discountPresent = false;
 				}
-				
 			} // input 4
 			
-			else if (intInput == 5) { // refresh the shop
+			else if (menuID == 5) { // refresh the shop
 				System.out.println("Shop has been REFRESHED");
-				multiItemGen(shopList, shopBound[shopTier]); // fill the shopList with items
-				refreshCounter++;
-				discountPresent = true;
+				
+				// fill the shopList with items
+				multiItemGen(shopList, shopBound[shopTier]);
+				refreshCounter++; // increase the Refresh cost
+				discountPresent = true; // add back the Discount
 			} // input 5
 			
-			else if (intInput == 6) { // overwrite a Shop item
-				System.out.println("Which item slot?: ");
-				intInput = myScanner.nextInt();
-				myScanner.nextLine(); // refresh the Scanner
+			else if (menuID == 6) { // overwrite a Shop item
+				int itemSlot;
+				String itemName;
+				Item selectedItem;
 				
-				System.out.println("Replace with what item?: ");
-				strInput = myScanner.nextLine();
-				
-				try {
-					System.out.println(strInput);
-					itemTemp = itemDatabase.get(strInput.toLowerCase());
-					shopList[intInput - 1] = itemTemp;
-					System.out.println("Succesfully replaced with " + itemTemp);
-				} catch (Exception e) {
-					System.out.println("That item does not exist.");
+				try { // catch the inputMismatchException
+					System.out.println("Which item slot?: ");
+					itemSlot = myScanner.nextInt() - 1;
+					myScanner.nextLine(); // refresh the Scanner
+					
+					System.out.println("Replace with what item?: ");
+					itemName = myScanner.nextLine();
+				} catch (InputMismatchException e) {
+					System.out.println("Looks like you mistyped something, try again.");
+					myScanner.nextLine();
+					continue;
 				}
 				
+				if (itemSlot < 0 || itemSlot > 5) { // catch the invalid itemSlot
+					System.out.println("Unfortunately that itemSlot isn't available.");
+					continue;
+				}
 				
+				// attempt to retrieve selectedItem from itemDatabase
+				selectedItem = itemDatabase.get(itemName.toLowerCase());
+				
+				if (selectedItem == null) { // if itemDatabase returns null
+					System.out.println("That item does not exist.");
+				}
+				else {
+					shopList[itemSlot] = selectedItem; // Based on the position and Item, overwrite shopList
+					System.out.println("Succesfully replaced with " + selectedItem);
+				}
 				
 			} // input 6
 			
-			else if (intInput == 7) { // purchase specific dice face
+			else if (menuID == 7) { // purchase specific dice face
+				int diceFace;
+				
 				System.out.println("Input a specific Dice Face: ");
-				intInput = myScanner.nextInt();
-				System.out.println(intInput + " face = " + 2 * intInput + " gold");
-				System.out.println("-" + intInput + " face = " + intInput + " gold");
-				System.out.println(intInput + 0.5 + " face = " + intInput * 3 + " gold");
+				diceFace = myScanner.nextInt();
+				
+				// Technically using magic numbers, may change later if it needs to
+				System.out.println(diceFace + " face = " + 2 * diceFace + " gold");
+				System.out.println("-" + diceFace + " face = " + diceFace + " gold");
+				System.out.println(diceFace + 0.5 + " face = " + diceFace * 3 + " gold");
 			} // input 7
 			
-			else if (intInput == 8) { // purchase a dice
+			else if (menuID == 8) { // purchase a dice
 				System.out.println("--- Tier 1 required ---");
 				System.out.println("D2: 20 gold");
 				System.out.println("D4: 20 gold");
@@ -729,11 +692,12 @@ public class ShopGenerator {
 				System.out.println("Dice Face Removal (Returns a Dice Face as an Item): 10 Gold ");
 			} // input 8
 			
-			else if (intInput == 9) { // generate quests
+			else if (menuID == 9) { // generate quests
 				
 				try { // questProbTemp holds the questT#Prob from questProbList
 					questProbTemp = questProbTier[shopTier];
 				} catch (Exception e) { // if something screws up, use questT0Prob as fallback
+					System.out.println(e); // DEBUG
 					questProbTemp = questProbTier[0];
 				}
 				
@@ -791,6 +755,8 @@ public class ShopGenerator {
 						+ "");
 				System.out.println(bonusSpace.substring(6) + "┍━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━»•» 🌸 «•«━━━━━┑");
 				
+				int weightedTemp;
+				Item itemReward;
 				
 				for (int i = 0; i < 4; i++) { // for each Quest
 					if (i != 0) { // don't print the line break at beginning
@@ -828,17 +794,17 @@ public class ShopGenerator {
 						for (int j = 0; j < quantityReward; j++) { // generate quantity number of random items
 							// generate random item Rewards based on the item Tier
 							if (tierReward  == 1) {
-								itemTemp = singleItemGen(1);
+								itemReward = singleItemGen(1);
 							}
 							else if (tierReward == 2) {
-								itemTemp = singleItemGen(2);
+								itemReward = singleItemGen(2);
 							}
 							else { // tier 3 item
-								itemTemp = singleItemGen(3);
+								itemReward = singleItemGen(3);
 							}
 							
 							// place itemTemp in bonusReward multiple times for each Random Reward item
-							bonusReward[i] += itemTemp.getName();
+							bonusReward[i] += itemReward.getName();
 							
 							if (j != quantityReward - 1) { // not last iteration
 								bonusReward[i] += ", ";
@@ -852,9 +818,9 @@ public class ShopGenerator {
 					} // else if random
 					
 					else if (questReward[i].contains("Artifact")) { // if it contains artifact
-						itemTemp = singleItemGen(4); // generate a random artifact
+						itemReward = singleItemGen(4); // generate a random artifact
 						bonusReward[i] = ""; // reset bonusReward
-						bonusReward[i] += itemTemp.getName(); // add Random Artifact to bonusReward
+						bonusReward[i] += itemReward.getName(); // add Random Artifact to bonusReward
 						
 					}
 					// Now: bonusReward now contains extra information based on questReward
@@ -893,62 +859,72 @@ public class ShopGenerator {
 				
 			} // input 9
 			
-			else if (intInput == 10) { // cleanly print a selected quest
+			else if (menuID == 10) { // cleanly print a selected quest
+				int questSlot;
+				
 				System.out.println("Which quest do you choose?: ");
-				intTemp = myScanner.nextInt();
+				questSlot = myScanner.nextInt();
 				
-				questBoard[intTemp - 1].fullPrint(questReward[intTemp - 1], bonusReward[intTemp - 1]);
+				// Cleanly display the Quest in questBoard
+				questBoard[questSlot - 1].fullPrint(questReward[questSlot - 1], bonusReward[questSlot - 1]);
 				
-			}
+			} // input 10
 			
-			else if (intInput == 11) { // generate 3 random numbers from 144
+			else if (menuID == 11) { // generate 3 random numbers from 144
 				for (int i = 0; i < 3; i++) {
 					System.out.println(randGen.nextInt(144) + 1);
 				}
 				System.out.println();
-			} // input 10
+			} // input 11
 			
-			else if (intInput == 12) { // calculate the distance
+			else if (menuID == 12) { // calculate the distance
+				int firstTile;
+				int secondTile;
+				
 				System.out.println("first tile?: ");
 				firstTile = myScanner.nextInt();
 				System.out.println("second tile?: ");
 				secondTile = myScanner.nextInt();
 				
 				calculateDistance(firstTile, secondTile);
-			}// input 11
+			}// input 12
 			
-			else if (intInput == 13) { // generate chest drops
+			else if (menuID == 13) { // generate chest drops
+				int chestNum;
+				
 				System.out.println("How many chest items?: ");
-				intTemp = myScanner.nextInt();
+				chestNum = myScanner.nextInt();
 				
 				/* multiItemGen(custom array length, weightedProb, singleItemGen)
 				 * except 
 				 * 
-				 * maybe instead, make a new Item[intTemp] inside the parameter
+				 * maybe instead, make a new Item[intTemp] inside the filter
 				 * itself, then it'll return the same Item[] and i do things with it?
 				 * 
 				 * or maybe use an ArrayList lol
 				 */
 				
 				
-				chestOpen(intTemp, chestBound);
+				chestOpen(chestNum, chestBound);
 				// turn this into lambda
 //				for (Item chestLoot : ) {
 //					chestLoot.fullPrint();
 //				}
-			} // else if input 12
+			} // else if input 13
 			
-			else if (intInput == 14) { // generate THEMED chest loot (UPDATE THIS)
+			else if (menuID == 14) { // generate THEMED chest loot (UPDATE THIS)
+				int chestNum;
+				
 				System.out.println("how many items?: ");
-				intTemp = myScanner.nextInt();
+				chestNum = myScanner.nextInt();
 				
 				myScanner.nextLine(); // refresh myScanner
 				System.out.println("choose a Type: ");
 				
-				final String TempParameter = myScanner.nextLine(); // make brand new final variable
+				final String TempFilter = myScanner.nextLine(); // make brand new final variable
 				
-				System.out.println("chestTotal: " + intTemp);
-				System.out.println("item Theme: " + TempParameter);
+				System.out.println("chestTotal: " + chestNum);
+				System.out.println("item Theme: " + TempFilter);
 				
 				/* problem:
 				 * ItemThemes are now String[], not String
@@ -956,8 +932,8 @@ public class ShopGenerator {
 				 */
 				
 				// NOTE: strTempFinal[0] instead of strTemp is probably a RACE condition FIX
-				chestOpen(intInput, chestProb, customGen, item -> (
-						Arrays.stream(item.getTheme()).anyMatch(theme -> theme.equals(TempParameter)
+				chestOpen(chestNum, chestProb, customGen, item -> (
+						Arrays.stream(item.getTheme()).anyMatch(theme -> theme.equals(TempFilter)
 							
 						
 						)
@@ -966,8 +942,8 @@ public class ShopGenerator {
 				
 				/*(
 						
-						for (String theme : TempParameter) {
-							if (item.getTheme().equals(TempParameter)) {
+						for (String theme : TempFilter) {
+							if (item.getTheme().equals(TempFilter)) {
 								return true;
 							}
 						}
@@ -978,39 +954,72 @@ public class ShopGenerator {
 				 * 
 				 */
 				
-			} // input 13
+			} // input 14
 			
-			else if (intInput == 15) {
+			else if (menuID == 15) {
+				Item selectedItem;
+				
+				// Print 1 item for each Tier
 				for (int i = 0; i < 4; i++) {
-					(itemTemp = singleItemGen(i)).fullPrint();
+					(selectedItem = singleItemGen(i)).fullPrint();
 				}
-			}
+			} // input 15
 			
-			/* Strange combination of:
-			 * string similarity
-			 * - https://stackoverflow.com/questions/955110/similarity-string-comparison-in-java
-			 * - https://rosettacode.org/wiki/Levenshtein_distance#Java
-			 * 
-			 * pair things
-			 * - https://stackoverflow.com/questions/67040866/arraylist-rearrange-with-another-arraylist
-			 * - https://www.geeksforgeeks.org/pair-class-in-java/
-			 * - https://www.geeksforgeeks.org/list-interface-java-examples/
-			 */
-			
-			else if (intInput == 16) { // inquire an item
-				myScanner.nextLine(); // refresh myScanner
-				System.out.println("type an item id: ");
-				strInput = myScanner.nextLine().toLowerCase();
+			else if (menuID == 16) {
+				int itemTier;
+				Item[] generatedItems;
 				
 				try {
-					itemTemp = itemDatabase.get(strInput);
-					itemTemp.fullPrint();
-					copyClipboard(itemTemp);
-				} catch (Exception e){
+					System.out.println("What tier?: ");
+					itemTier = myScanner.nextInt();
+					
+					System.out.println("How many items?: ");
+					generatedItems = new Item[myScanner.nextInt()];
+				} catch (InputMismatchException e) {
+					System.out.println("Looks like you mistyped something, try again.");
+					myScanner.nextLine();
+					continue;
+				}
+				
+				if (itemTier <= -1  || itemTier >= 6) {
+					System.out.println("Unfortunately that itemTier doesn't exist.");
+					continue;
+				}
+				
+				multiItemGen(generatedItems, singleGen, itemTier, null);
+					
+				for (Item target : generatedItems) {
+					target.fullPrint();
+				}
+				
+			}
+			
+			else if (menuID == 17) { // inquire an item
+				/* Strange combination of:
+				 * string similarity
+				 * - https://stackoverflow.com/questions/955110/similarity-string-comparison-in-java
+				 * - https://rosettacode.org/wiki/Levenshtein_distance#Java
+				 * 
+				 * pair things
+				 * - https://stackoverflow.com/questions/67040866/arraylist-rearrange-with-another-arraylist
+				 * - https://www.geeksforgeeks.org/pair-class-in-java/
+				 * - https://www.geeksforgeeks.org/list-interface-java-examples/
+				 */
+				String itemName;
+				Item selectedItem;
+				
+				myScanner.nextLine(); // refresh myScanner
+				System.out.println("type the itemName: ");
+				itemName = myScanner.nextLine().toLowerCase();
+				
+				// Search for the Item name
+				selectedItem = itemDatabase.get(itemName);
+				
+				if (selectedItem == null) {
 					System.out.println("No such item exists, did you mean?: ");
 					
 					for (Item element : itemDatabase.values()) {
-						pairList.add(new AbstractMap.SimpleEntry<>(element,similarity(element.getName(), strInput)));
+						pairList.add(new AbstractMap.SimpleEntry<>(element,similarity(element.getName(), itemName)));
 					}
 					
 					pairList.sort((p1, p2)
@@ -1022,12 +1031,15 @@ public class ShopGenerator {
 					}
 					
 					pairList.clear();
-					
+				}
+				else {
+					selectedItem.fullPrint();
+					copyClipboard(selectedItem); // the error most likely appears here
 				}
 
-			} // input 15
+			} // input 16
 			
-			else if (intInput == 17) { // save html format to Clipboard (for google docs)
+//			else if (menuID == 18) { // save html format to Clipboard (for google docs)
 //				root.clear(); // reset the root
 //				
 //		        /* Create a data-model */
@@ -1045,14 +1057,14 @@ public class ShopGenerator {
 //		        
 //		        temp.process(root, out); // put this into StringWriter
 				
-				try {
-					System.out.println(itemTemp.getPlain());
-					System.out.println(itemTemp.getHtml());
-					copyClipboard(itemTemp);
-				} catch (Exception e) {
-					System.out.println("Something went WRONG with the clipboard print.");
-					e.printStackTrace();
-				}
+//				try {
+//					System.out.println(itemTemp.getPlain());
+//					System.out.println(itemTemp.getHtml());
+//					copyClipboard(itemTemp);
+//				} catch (Exception e) {
+//					System.out.println("Something went WRONG with the clipboard print.");
+//					e.printStackTrace();
+//				}
 				
 				
 //				System.out.println("second");
@@ -1065,33 +1077,17 @@ public class ShopGenerator {
 //						+ "- Type: Item\r\n"
 //						+ "- Theme: Steal/Creation\r\n"
 //						+ "- Version: v1.2");
-				
-				
-				
-				
-			}
+//				
+//			} // input 17
 			
-			else if (intInput == 18) { // possible things to do on a turn
-				System.out.println("Open the Shop\r\n"
-						+ "- Buy Dice\r\n"
-						+ "- Inventory Upgrade\r\n"
-						+ "- Shop Tier (15 Gold, 30 Gold)\r\n"
-						+ "- Access the Yard Sale (requires Yard Sale Permit)\r\n"
-						+ "- Upgrade Inventory 15 Gold (max 2 times for 7 total)\r\n"
-						+ "\r\n"
-						+ "Upgrade Artifact Tier\r\n"
-						+ "- Artifact T2 = 15 Gold\r\n"
-						+ "- Artifact T3 = 30 Gold");
-			} // input 10
-			
-			else if (intInput == 19) { // generate ALL start items
+			else if (menuID == 18) { // generate ALL start items
 				
 				for (int i = 0; i < 3; i++) { // for each player
 					// generate a custom item in startArray
 					startArray[i] = multiItemGen(startArray[i], startBound);
 					
 					
-					// for each startArray[player X] Item, call customItemGen(pattern, parameter) to generate a new item
+					// for each startArray[player X] Item, call customItemGen(pattern, filter) to generate a new item
 //					startArray[i][0] = customItemGen(1, item -> (!item.getType().equals("Passive")));
 //					startArray[i][1] = customItemGen(1, item -> (!item.getType().equals("Passive")));
 //					startArray[i][2] = customItemGen(2, item -> (!item.getType().equals("Passive")));
@@ -1099,17 +1095,26 @@ public class ShopGenerator {
 				}
 				System.out.println("Successfully generated all starting items.");
 				
-			} // input 15
+			} // input 18
 			
-			else if (intInput == 20) { // print the starting items
-				System.out.println("which player? (0 for all)");
+			else if (menuID == 19) { // print the starting items
+				int selectedPlayer = 0;
+				
 				try {
-					intTemp = myScanner.nextInt(); // intTemp usually holds the player (not 0 index)
-				} catch (Exception e) {
-					System.out.println("You didn't type a valid Player, try again.");
+					System.out.println("which player? (0 for all)");
+					selectedPlayer = myScanner.nextInt(); // intTemp usually holds the player (not 0 index)
+					
+					if (selectedPlayer < 0 || selectedPlayer > 3) {
+						System.out.println("You didn't type a valid Player, try again.");
+						continue;
+					}
+				} catch (InputMismatchException e){
+					System.out.println("Looks like you mistyped something, try again.");
+					continue;
 				}
 				
-				if (intTemp == 0) { // print every player
+				// Either print every inventory or a select Player
+				if (selectedPlayer == 0) { // print every player
 					for (int i = 0; i < 3; i++) { // for each player
 						System.out.println("--- PLAYER " + (i + 1) + "'s Starting Inventory ---");
 						for (int j = 0; j < 4; j++) { // for each player's inventory
@@ -1122,64 +1127,84 @@ public class ShopGenerator {
 							startArray[i][j].fullPrint();
 						}
 					}
-				}
+				} // if
+				
 				else { // print a specific player
-					System.out.println("--- PLAYER " + (intTemp) + "'s Starting Inventory ---");
-					intTemp--;
+					System.out.println("--- PLAYER " + (selectedPlayer) + "'s Starting Inventory ---");
+					selectedPlayer--; // 0 index the selectedPlayer
 					for (int i = 0; i < 4; i++) {
-						if (startRefreshed[intTemp][i]) { // can be refreshed
+						if (startRefreshed[selectedPlayer][i]) { // can be refreshed
 							System.out.println("(CANNOT be refreshed)");
 						}
 						else {
 							System.out.println("(Can be refreshed)");
 						}
-						startArray[intTemp][i].fullPrint();
+						startArray[selectedPlayer][i].fullPrint();
 					}
-				}
+				} // else
+				
 			}
 			
-			else if (intInput == 21) { // refresh a starter item
+			else if (menuID == 20) { // refresh a starter item
+				int selectedPlayer;
+				int itemSlot;
+				
 				try {
 					System.out.println("Which player?: ");
-					intTemp = myScanner.nextInt(); // player (1-3 index)
+					selectedPlayer = myScanner.nextInt(); // player (1-3 index)
 					
 					System.out.println("Which item slot?: ");
-					intTemp2 = myScanner.nextInt(); // item slot (1-4 index)
-				} catch (Exception e) {
+					itemSlot = myScanner.nextInt(); // item slot (1-4 index)
+				} catch (InputMismatchException e) {
 					System.out.println("Looks like you mistyped something, try again.");
 					myScanner.nextLine(); // reset in case String typed so doesn't break nextInt()
 					continue;
 				}
 				
 				
+				if (selectedPlayer <= 0 || selectedPlayer >= 4) { // players are 1-3
+					// This will trigger first over itemSlot
+					System.out.println("Invalid Player, try again.");
+					continue;
+				}
+				else if (itemSlot <= 0 || itemSlot >= 5) {
+					System.out.println("Invalid itemSlot, try again.");
+					continue;
+				}
+			
 				
-				if (!startRefreshed[intTemp - 1][intTemp2 - 1]) { // if you can refresh it (true)
-					intTemp--; // make it 0 indexed (intTemp = 1 means player 1 at index no.0)
-					intTemp2--;
+				// Refresh the item based on the Player and Item Slot
+				if (!startRefreshed[selectedPlayer - 1][itemSlot - 1]) { // if you can refresh it (true)
+					selectedPlayer--; // make it 0 indexed (intTemp = 1 means player 1 at index no.0)
+					itemSlot--;
 					
-					if (intTemp2 == 0 || intTemp2 == 1) { // if it item no.1 or 2
+					Item generatedItem;
+					String htmlClipboard;
+					String rawClipboard;
+					
+					if (itemSlot == 0 || itemSlot == 1) { // if it item no.1 or 2
 						System.out.println("refreshing T1");
 						// generate a T1 which is impossible to be a Passive
-						itemTemp = noDupeItemGen(startArray[intTemp], 1, customGen, item -> (!item.getType().equals("Passive")));
+						generatedItem = noDupeItemGen(startArray[selectedPlayer], 1, customGen, item -> (!item.getType().equals("Passive")));
 					}
 					else {
 						// generate a T2 that's NOT a Passive
 						System.out.println("refreshing T2");
-						itemTemp = noDupeItemGen(startArray[intTemp], 2, customGen, item -> (!item.getType().equals("Passive")));
+						generatedItem = noDupeItemGen(startArray[selectedPlayer], 2, customGen, item -> (!item.getType().equals("Passive")));
 					}
-					startRefreshed[intTemp][intTemp2] = true; // set startRefreshed to true as item was refreshed
+					startRefreshed[selectedPlayer][itemSlot] = true; // set startRefreshed to true as item was refreshed
 					
-					startArray[intTemp][intTemp2] = itemTemp; // replace the old refreshed item
+					startArray[selectedPlayer][itemSlot] = generatedItem; // replace the old refreshed item
 					
 					System.out.println("(CANNOT be refreshed)");
-					itemTemp.fullPrint(); // print the new item
+					generatedItem.fullPrint(); // print the new item
 					
 					// copy the item WITH the (refresh) into clipboard
-					strTemp = "<html><body>" + "(CANNOT be refreshed)" + "</body></html>\n" + itemTemp.getHtml();
-					itemTrans.setHtml(strTemp);
+					htmlClipboard = "<html><body>" + "(CANNOT be refreshed)" + "</body></html>\n" + generatedItem.getHtml();
+					itemTrans.setHtml(htmlClipboard);
 					
-					strTemp = "(CANNOT be refreshed)\n" + itemTemp.getPlain();
-					itemTrans.setPlain(strTemp);
+					rawClipboard = "(CANNOT be refreshed)\n" + generatedItem.getPlain();
+					itemTrans.setPlain(rawClipboard);
 					
 //					System.out.println("PLAIN------------");
 //					System.out.println(itemTransTemp.getPlain());
@@ -1190,19 +1215,23 @@ public class ShopGenerator {
 					clipboard.setContents(itemTrans, null);
 					System.out.println("Successfully copied to clipboard.");
 					
-				}
+				} // if
+				
 				else { // otherwise you've already refreshed (false)
-					System.out.println("Player " + intTemp +  " has already refreshed item no." + intTemp2);
-				}
+					System.out.println("Player " + selectedPlayer +  " has already refreshed item no." + itemSlot);
+				} // else
 			}
 			
-			else if (intInput == 22) { // clipboard the Starter items
+			else if (menuID == 21) { // clipboard the Starter items
+				int selectedPlayer;
+				String includeRefreshStatus;
+				
 				System.out.println("Which player?: ");
-				intInput = myScanner.nextInt() - 1;
+				selectedPlayer = myScanner.nextInt() - 1;
 				
 				System.out.println("Type something to include the (refresh status): ");
-				myScanner.nextLine();
-				strInput = myScanner.nextLine();
+				myScanner.nextLine(); // reset the scanner
+				includeRefreshStatus = myScanner.nextLine();
 				
 				/* strTemp holds
 				 * strTemp2 holds
@@ -1210,17 +1239,16 @@ public class ShopGenerator {
 				 * 
 				 */
 				
-				// reset strTemp
-				strTemp = "";
-				strTemp2 = "";
+				String htmlClipboard = "";
+				String rawClipboard = "";
 				
 				// for every starting item
-				if (strInput.isEmpty()) { // copy WITHOUT the (refresh)
+				if (includeRefreshStatus.isEmpty()) { // copy WITHOUT the (refresh)
 					// store every Item's html in strTemp
-					for (Item element : startArray[intInput]) { // for every Item in startArray[player]
+					for (Item element : startArray[selectedPlayer]) { // for every Item in startArray[player]
 						element.fullPrint();
-						strTemp += element.getHtml() + "<br>"; // store Item.getHtml() in strTemp2
-						strTemp2 += element.getPlain() + "\r\n";
+						htmlClipboard += element.getHtml() + "<br>"; // store Item.getHtml() in strTemp2
+						rawClipboard += element.getPlain() + "\r\n";
 					}
 					
 				} // if copy without (refresh status)
@@ -1228,11 +1256,12 @@ public class ShopGenerator {
 				else { // copy with the (refresh)
 					String refreshHoldPlain;
 					String refreshHoldHtml;
+					Item currentItem;
 					
-					for (int i = 0; i < startArray[intInput].length; i++) {
-						itemTemp = startArray[intInput][i];
+					for (int i = 0; i < startArray[selectedPlayer].length; i++) {
+						currentItem = startArray[selectedPlayer][i];
 						
-						if (startRefreshed[intInput][i]) {
+						if (startRefreshed[selectedPlayer][i]) {
 							System.out.println("(CANNOT be refreshed)");
 							refreshHoldHtml = "<html><body style=\"margin:0; padding:0;\">" + "(CANNOT be refreshed)" + "</body></html>\r\n";
 							refreshHoldPlain = "(CANNOT be refreshed)";
@@ -1242,28 +1271,28 @@ public class ShopGenerator {
 							refreshHoldHtml = "<html><body style=\"margin:0; padding:0;\">" + "(Can be refreshed)" + "</body></html>\r\n";
 							refreshHoldPlain = "(Can be refreshed)";
 						}
-						itemTemp.fullPrint();
+						currentItem.fullPrint();
 						
 						// strTemp holds both the Item Html AND (refresh status)
-						strTemp += refreshHoldHtml + itemTemp.getHtml() + "<br>";
+						htmlClipboard += refreshHoldHtml + currentItem.getHtml() + "<br>";
 //						strTemp += itemTemp.getHtml() + "\r\n";
 						
 						// strTemp2 holds both the Item Plain AND (refresh status)
-						strTemp2 += refreshHoldPlain + itemTemp.getPlain() + "\r\n";
+						rawClipboard += refreshHoldPlain + currentItem.getPlain() + "\r\n";
 					}
 				} // else copy with (Refresh status)
 				
 				
 				
-				itemTrans.setPlain(strTemp2);
-				itemTrans.setHtml(strTemp);
+				itemTrans.setPlain(rawClipboard);
+				itemTrans.setHtml(htmlClipboard);
 				clipboard.setContents(itemTrans, null);
 				System.out.println("Successfully added all Starting items to clipboard.");
 				
-				System.out.println(strTemp);
+//				System.out.println(htmlClipboard); // display which item it is
 			}
 			
-			else if (intInput == 23) { // print artifacts
+			else if (menuID == 22) { // print and clipboard artifacts
 				itemNameList.values().forEach(value -> {
 					if (value.getTier() == 4) {
 						value.fullPrint();
@@ -1274,15 +1303,20 @@ public class ShopGenerator {
 				
 			} // input 16
 			
-			else if (intInput == 24) { // generate tutorial items
+			else if (menuID == 23) { // generate tutorial items
 				startArray[0][0] = itemDatabase.get("# in a bottle");
 				startArray[0][1] = itemDatabase.get("banana peel");
 				startArray[0][2] = itemDatabase.get("directional sign post");
 				startArray[0][3] = itemDatabase.get("prickly pear");
 				
+				// NOTE: Player 1 is hardcoded to have the tutorial inventory
+				for (int i = 0; i < startArray.length; i++) {
+					startArray[0][i] = tutorialArray[i];
+				}
+				
 				uniMethod.printArray(startArray[0]);
 				
-				System.out.println("Successfully replaces tutorial items");
+				System.out.println("Successfully replaced Player 1's inventory with Tutorial");
 			}
 			
 		}// while loop
@@ -1317,7 +1351,7 @@ public class ShopGenerator {
             this.plain = plain;
         }
 		
-		public ItemTransfer() {
+		public ItemTransfer() { // empty constructor
 			
 		}
 		
@@ -1404,7 +1438,7 @@ public class ShopGenerator {
 	 * @param ItemGenMethod<T> itemGen
 	 * The method of generating an item.
 	 * 
-	 * @param Predicate<Item> parameter
+	 * @param Predicate<Item> filter
 	 * If using customItemGen, what the parameters are for
 	 * generating the item.
 	 * 
@@ -1422,9 +1456,9 @@ public class ShopGenerator {
 		return chestArray;
 	}
 	
-	public static <T> Item[] chestOpen(int chestTotal, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> parameter) {
+	public static <T> Item[] chestOpen(int chestTotal, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> filter) {
 		Item[] chestArray = new Item[chestTotal];
-		multiItemGen(chestArray, itemGen, pattern, parameter);
+		multiItemGen(chestArray, itemGen, pattern, filter);
 		
 		System.out.println("CHEST OPENING TIME");
 		for (int i = 0; i < chestArray.length; i++) { // display all the items
@@ -1509,12 +1543,12 @@ public class ShopGenerator {
 	 * the Item Tier.
 	 * 
 	 * @secret param
-	 * shopList[intInput - 1] = purchaseItem(shopList, weightedShopArray[shopTier]); // switch out the old item
+	 * shopList[itemSlot - 1] = purchaseItem(shopList, weightedShopArray[shopTier]); // switch out the old item
 	 * Usually the item that is generated is put into the same shopList/itemArray array.
 	 * 
 	 */
 	
-	public static <T> Item noDupeItemGen(Item[] itemArray, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> parameter){
+	public static <T> Item noDupeItemGen(Item[] itemArray, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> filter){
 		
 		// generate a new Item based on shopList for no duplicates
 		Item itemHolder;
@@ -1527,9 +1561,9 @@ public class ShopGenerator {
 //			itemHolder = singleItemGen(weightedProbability);
 			
 			/* customItemGen
-			 * itemGen = (int, Predicate<Item>) -> customItemGen(itemTier, parameter)
+			 * itemGen = (int, Predicate<Item>) -> customItemGen(itemTier, filter)
 			 */
-			itemHolder = itemGen.runGenerate(pattern, parameter); // generate a random item but use itemGen to do so
+			itemHolder = itemGen.runGenerate(pattern, filter); // generate a random item but use itemGen to do so
 			
 			// make sure there's no duplicates (including the original item)
 			for (int i = 0; i < itemArray.length; i++) { // iterate through itemArray
@@ -1554,13 +1588,7 @@ public class ShopGenerator {
 		do {
 			yesDupes = false; // assume there's dupes
 			
-			// generate an item
-//			itemHolder = singleItemGen(weightedProbability);
-			
-			
-			/* customItemGen
-			 * itemGen = (int, Predicate<Item>) -> customItemGen(itemTier, parameter)
-			 */
+			// use BoundItemGen to generate an Item
 			itemTemp = boundArray.runGenerate(); // generate a random item but use itemGen to do so
 			
 			// make sure there's no duplicates (including the original item)
@@ -1577,7 +1605,7 @@ public class ShopGenerator {
 		return itemTemp;
 	} // ARRAY
 	
-//	public static <T> Item noDupeItemGen(ArrayList<Item> itemArray, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> parameter){
+//	public static <T> Item noDupeItemGen(ArrayList<Item> itemArray, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> filter){
 //		
 //		// generate a new Item based on shopList for no duplicates
 //		Item itemHolder;
@@ -1587,12 +1615,12 @@ public class ShopGenerator {
 //			yesDupes = false; // assume there's dupes
 //			
 //			/* customItemGen
-//			 * itemGen = (int, Predicate<Item>) -> customItemGen(itemTier, parameter)
+//			 * itemGen = (int, Predicate<Item>) -> customItemGen(itemTier, filter)
 //			 */
 //			
 //			// generate an item
 ////			itemHolder = singleItemGen(weightedProbability);
-//			itemHolder = itemGen.runGenerate(pattern, parameter); // generate a random item but use itemGen to do so
+//			itemHolder = itemGen.runGenerate(pattern, filter); // generate a random item but use itemGen to do so
 //			
 //			// make sure there's no duplicates (including the original item)
 //			for (int i = 0; i < itemArray.size(); i++) { // iterate through itemArray
@@ -1621,7 +1649,7 @@ public class ShopGenerator {
 	 *  
 	 *  @param ItemGenMethod<T> itemGen
 	 *  
-	 *  @param Predicate<Item> parameter
+	 *  @param Predicate<Item> filter
 	 *  
 	 *  another version uses this:
 	 *  
@@ -1629,13 +1657,13 @@ public class ShopGenerator {
 	 *  
 	 *  @param boundArray
 	 *  
-	 *  Bound version is only used if the itemGen methods, parameters and patterns
+	 *  Bound version is only used if the itemGen methods, filters and patterns
 	 *  are always going to be the same.
 	 *  
 	 *  Manual version is used if the itemGen methods change alot
 	 */
 	
-	public static <T> Item[] multiItemGen(Item[] itemArray, ItemGenMethod<T> itemGen, T pattern, Predicate<Item> parameter) {
+	public static <T> Item[] multiItemGen(Item[] itemArray, ItemGenMethod<T> itemGen, T pattern, Predicate<Item> filter) {
 		Item itemHolder = null; // used to store items
 		boolean yesDupes = true;
 		
@@ -1644,14 +1672,14 @@ public class ShopGenerator {
 		 */
 //		System.out.println("multiItemGen Array[] was called");
 		
-		itemArray[0] = itemGen.runGenerate(pattern, parameter);// generate the first item
+		itemArray[0] = itemGen.runGenerate(pattern, filter);// generate the first item
 //		System.out.println("first item is: " + itemArray[0]);
 		
 		
 		for (int i = 1; i < itemArray.length; i++) { // generate itemArray.length number of Items
 			do { // generate the next item and check if it's a dupe
 				yesDupes = false; // assume that there's no dupes but check anyways
-				itemHolder = itemGen.runGenerate(pattern, parameter); // generate a random item
+				itemHolder = itemGen.runGenerate(pattern, filter); // generate a random item
 //				System.out.println("generated: " + itemHolder);
 				
 				for (int j = 0; j < itemArray.length; j++) { // iterate through itemArray
@@ -1675,7 +1703,7 @@ public class ShopGenerator {
 		Item itemHolder = null; // used to store items
 		boolean yesDupes = true;
 		
-		// check if itemArray and parameterArray are the same size
+		// check if itemArray and filterArray are the same size
 		
 		if (itemArray.length != genArray.length) {
 			throw new IllegalArgumentException(
@@ -1716,7 +1744,7 @@ public class ShopGenerator {
 		Item itemHolder = null; // used to store items
 		boolean yesDupes = true;
 		
-		// check if itemArray and parameterArray are the same size
+		// check if itemArray and filterArray are the same size
 		
 		
 //		System.out.println("multiItemGen Array[] was called");
@@ -1757,14 +1785,14 @@ public class ShopGenerator {
 		System.out.println("Successfully copied to Clipboard");
 	}
 	
-	public static void copyClipboard(Predicate<Item> parameter) {
+	public static void copyClipboard(Predicate<Item> filter) {
 		// reset strTemp
 		String htmlTemp = "";
 		String plainTemp = "";
 		
 		// loop through every Artifact
 		for (Item element : itemNameList.values()) { // search the entire itemNameList
-			if (parameter.test(element)) { // if the parameter matches the chosen Item
+			if (filter.test(element)) { // if the filter matches the chosen Item
 //				element.fullPrint();
 				
 				// record the Item's html and plain
@@ -1785,7 +1813,7 @@ public class ShopGenerator {
 	 * 
 	 */
 	
-//	public static <T> void multiItemGen(int arraySize, ArrayList<Item> itemArray, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> parameter) {
+//	public static <T> void multiItemGen(int arraySize, ArrayList<Item> itemArray, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> filter) {
 //		// this version specifically is for ArrayLists, which is really only used for the shop
 //		
 //		Item itemHolder = null; // used to store items
@@ -1795,14 +1823,14 @@ public class ShopGenerator {
 //		 * 
 //		 */
 //		itemArray.clear(); // clear the ArrayList BECAUSE multiItemGen is supposed to fill an array
-//		itemArray.add(itemGen.runGenerate(pattern, parameter));// generate the 0th item
+//		itemArray.add(itemGen.runGenerate(pattern, filter));// generate the 0th item
 ////		System.out.println("first item is: " + itemArray[0]);
 //		
 //		
 //		for (int i = 1; i < arraySize; i++) { // start at 1st item, generate itemArray.length number of Items
 //			do { // generate the next item and check if it's a dupe
 //				yesDupes = false; // assume that there's no dupes but check anyways
-//				itemHolder = itemGen.runGenerate(pattern, parameter); // generate a random item
+//				itemHolder = itemGen.runGenerate(pattern, filter); // generate a random item
 ////				System.out.println("generated: " + itemHolder);
 //				
 //				for (int j = 0; j < itemArray.size(); j++) { // iterate through itemArray
@@ -1822,7 +1850,7 @@ public class ShopGenerator {
 //	} // multiItemGen ARRAYLIST
 	
 	/* Method which has 2 overloaded versions,
-	 * takes in a pattern and parameter and passes it to
+	 * takes in a pattern and filter and passes it to
 	 * customItemGen or singleItemGen respectively.
 	 * 
 	 * @param T pattern
@@ -1831,19 +1859,19 @@ public class ShopGenerator {
 	 * int itemTier, guarantees an item probability
 	 * int[5] weightedProbability, each index represents a tier to select and then generate.
 	 * 
-	 * @param Predicate<Item> parameter
+	 * @param Predicate<Item> filter
 	 * A mini method which takes in an Item and returns something.
 	 * Most methods require this to return a boolean, specifically
-	 * as a parameter for generating items in customItemGen
+	 * as a filter for generating items in customItemGen
 	 * 
 	 */
 	
-	public static <T> Item generateItem(T pattern, Predicate<Item> parameter) {
+	public static <T> Item generateItem(T pattern, Predicate<Item> filter) {
 		if (pattern instanceof Integer) { // generate a guaranteed Tier
-			return customItemGen((int)pattern, parameter);
+			return customItemGen((int)pattern, filter);
 		}
 		else if (pattern instanceof int[]){ // generate based on Probability
-			return customItemGen((int[])pattern, parameter);
+			return customItemGen((int[])pattern, filter);
 		}
 		else {
 			throw new IllegalArgumentException("generateItem customGen, Invalid pattern type: " + pattern.getClass());
@@ -1869,24 +1897,24 @@ public class ShopGenerator {
 	 * Based on the itemTier or weightedProbability, return a randomly
 	 * generated item
 	 * 
-	 * @param parameter
+	 * @param filter
 	 * Predicate which is basically a lambda expression AKA a portable mini
 	 * method, used as the requirement for what to EXCLUDE from generated item
 	 */
-	public static Item customItemGen(int itemTier, Predicate<Item> parameter) {
+	public static Item customItemGen(int itemTier, Predicate<Item> filter) {
 //		System.out.println("customItemGen itemTier was called");
 		Item itemTemp;
 		
 		do {
 			itemTemp = singleItemGen(itemTier);
 			uniMethod.overload(999);
-		} while (!parameter.test(itemTemp)); // keep generating until the parameter is met
+		} while (!filter.test(itemTemp)); // keep generating until the filter is met
 
 		uniMethod.overloadReset();
 		return itemTemp;
 	}
 	
-	public static Item customItemGen(int[] weightedProbability, Predicate<Item> parameter) {
+	public static Item customItemGen(int[] weightedProbability, Predicate<Item> filter) {
 //		System.out.println("customItemGen weightedProb was called");
 		Item itemTemp;
 		
@@ -1896,7 +1924,7 @@ public class ShopGenerator {
 			
 			// record the item
 			uniMethod.overload(999); // just in case it gets stuck in an infinite loop
-		} while (!parameter.test(itemTemp)); // keep generating until the parameter is NOT met
+		} while (!filter.test(itemTemp)); // keep generating until the filter is NOT met
 		
 		uniMethod.overloadReset();
 		return itemTemp;
@@ -2202,7 +2230,7 @@ public class ShopGenerator {
  * called BoundItemGen, but each BoundItemGen contains an generateItem()
  * which has 2 types:
  * generateItem(T pattern) -- goes to --> singleItemGen(specific pattern)
- * generateItem(T pattern, Predicate<Item> parameter) -- goes to --> customItemGen(specific pattern, parameter)
+ * generateItem(T pattern, Predicate<Item> filter) -- goes to --> customItemGen(specific pattern, filter)
  *
  * @ multiItemGen(itemArray, singleGen(class), 3, null)
  * This says to take singleGen, and do singleGen.test(3, null)
@@ -2223,10 +2251,10 @@ public class ShopGenerator {
  * for item generations that DO NOT CHANGE, while the 3rd is like programmable.
  * 
  * Fundamentally, this code runs by either having ItemGenMethod OR generateItem()
- * route the pattern/parameter manually, where both BoundItemGen and ItemGenMethod
+ * route the pattern/filter manually, where both BoundItemGen and ItemGenMethod
  * just do a "runGenerate()" to make the item. In this case, ItemGenMethod uses
- * both (pattern, parameter) as its parameters, while BoundItemGen uses
- * runGenerate() where the bind() process is EITHER bind(pattern) or bind(pattern, parameter)
+ * both (pattern, filter) as its filters, while BoundItemGen uses
+ * runGenerate() where the bind() process is EITHER bind(pattern) or bind(pattern, filter)
  * 
  * Also generateItem is overloaded to have 2 methods, with 4 outcomes total:
  * customItemGen() with int and int[]

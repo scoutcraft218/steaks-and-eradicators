@@ -6,6 +6,20 @@ import java.util.*;
 import java.io.*;
 
 public class Item {
+    /* all primary variables
+     * 
+     * {ItemName}
+     * {ItemTierColor}
+     * {ItemTier}
+     * {ItemCost}
+     * {ItemDesc + lines}
+     * {ItemRange}
+     * {ItemType}
+     * {ItemTheme}
+     * {ItemVersion}
+     * 
+     */
+	
 	public static int TotalItem = 0;
 	private int ItemID;
 	private String ItemName;
@@ -64,17 +78,18 @@ public class Item {
 	// color variables
 	
 	// used for Item Tiers
-	final static String[] HEX_TIER = new String[5];{
+	final static String[] HEX_TIER = new String[6];{
 		HEX_TIER[0] = "#ffd966";
 		HEX_TIER[1] = "#b1d0a4";
 		HEX_TIER[2] = "#a4c2f4";
 		HEX_TIER[3] = "#dd7e6b";
 		HEX_TIER[4] = "#c585d1";
+		HEX_TIER[5] = "#4eabb1";
 	}
 	
 	
 	// used for Item Tiers
-	final static String[] ANSI_TIER = new String[5]; {
+	final static String[] ANSI_TIER = new String[6]; {
 		for (int i = 0; i < HEX_TIER.length; i++) {
 			ANSI_TIER[i] = hexToAnsi(HEX_TIER[i]);
 		}
@@ -92,6 +107,7 @@ public class Item {
 		HEX_THEME.put("Passive", "#a2c4c9");
 		HEX_THEME.put("Curse", "#b4a7d6");
 		HEX_THEME.put("Hazard/Item", "#ff9900");
+		HEX_THEME.put("Power", "#4ad3e2");
 		
 		if (!simpleTheme) { // use the original colors
 			HEX_THEME.put("Gold", "#f1c232");

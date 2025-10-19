@@ -809,10 +809,8 @@ public class ShopGenerator {
 							if (j != quantityReward - 1) { // not last iteration
 								bonusReward[i] += ", ";
 							}
-							
-							// funny thing vvvv
-//							itemTemp = itemIDList.get(itemTierList[Integer.parseInt(strTemp.substring(strTemp.indexOf('T') + 1, strTemp.indexOf('T') + 1))].get(randGen.nextInt(itemTierList[Integer.parseInt(strTemp.substring(strTemp.indexOf('T') + 1, strTemp.indexOf('T') + 1))].size())));
-						} // for loop j
+
+                        } // for loop j
 						
 						
 					} // else if random

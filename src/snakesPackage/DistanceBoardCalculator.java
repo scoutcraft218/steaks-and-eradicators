@@ -21,7 +21,8 @@ public class DistanceBoardCalculator {
 		// magic machine which returns 1 if divisible by interval: System.out.println(Math.abs((changes % 12) - 12)/12);
 		
 		// basically tells whenever it's on another row, ACCOUNTING FOR 12, 24, etc being on the same row
-		int firstChange = ((firstTile / interval)  - Math.abs((firstTile % interval) - interval)/interval)%2;
+		int firstChange = ((firstTile / interval) - Math.abs((firstTile %
+                interval) - interval)/interval)%2;
 		int secondChange = ((secondTile / interval) - Math.abs((secondTile % interval) - interval)/interval)%2; // subtract by 1 ONLY if it's divisible by 12
 		
 		// 13 = 24, 1 = 12

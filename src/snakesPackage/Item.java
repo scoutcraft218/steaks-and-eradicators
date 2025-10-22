@@ -1,9 +1,11 @@
 package snakesPackage;
-import universalThings.uniMethod;
 
 import freemarker.template.*;
+import universalThings.uniMethod;
+
 import java.util.*;
 import java.io.*;
+import static snakesPackage.ColorData.*;
 
 public class Item {
     /* all primary variables
@@ -21,7 +23,6 @@ public class Item {
      */
 	
 	public static int TotalItem = 0;
-	private int ItemID;
 	private String ItemName;
 	private int ItemCost;
 	private String[] ItemDesc;
@@ -32,6 +33,8 @@ public class Item {
 	private int ItemTier;
 	private String ItemVersion;
 	private int ItemComplexity;
+    private boolean isStocked;
+
 	private String ItemHtml;
 	private String ItemPlain;
 	
@@ -77,97 +80,24 @@ public class Item {
 	
 	// color variables
 	
-	// used for Item Tiers
-	final static String[] HEX_TIER = new String[6];{
-		HEX_TIER[0] = "#ffd966";
-		HEX_TIER[1] = "#b1d0a4";
-		HEX_TIER[2] = "#a4c2f4";
-		HEX_TIER[3] = "#dd7e6b";
-		HEX_TIER[4] = "#c585d1";
-		HEX_TIER[5] = "#4eabb1";
-	}
-	
-	
-	// used for Item Tiers
-	final static String[] ANSI_TIER = new String[6]; {
-		for (int i = 0; i < HEX_TIER.length; i++) {
-			ANSI_TIER[i] = hexToAnsi(HEX_TIER[i]);
-		}
-	}
-	
-	final static String ANSI_RESET = "\033[0m";
-	final static String RGB_RESET = "[255, 255, 255]";
-	
-	final static HashMap<String, String> HEX_THEME = new HashMap<String, String>();
-	static {
-		HEX_THEME.put("Item", "#ea9999");
-		HEX_THEME.put("Hazard", "#f9cb9c");
-		HEX_THEME.put("Building", "#ffe599");
-		HEX_THEME.put("Artifact", "#b6d7a8");
-		HEX_THEME.put("Passive", "#a2c4c9");
-		HEX_THEME.put("Curse", "#b4a7d6");
-		HEX_THEME.put("Hazard/Item", "#ff9900");
-		HEX_THEME.put("Power", "#4ad3e2");
-		
-		if (!simpleTheme) { // use the original colors
-			HEX_THEME.put("Gold", "#f1c232");
-			HEX_THEME.put("Steal", "#ee560b");
-			HEX_THEME.put("Gain", "#c4d313");
-			HEX_THEME.put("Mobility", "#43e243");
-			HEX_THEME.put("Reverse", "#d5a6bd");
-			HEX_THEME.put("Hinder", "#a6c29b");
-			HEX_THEME.put("Relocate", "#d33ed2");
-			HEX_THEME.put("Creation", "#00ffff");
-			HEX_THEME.put("Change", "#f7007a");
-			HEX_THEME.put("Opportunity", "#4ca7fa");
-			HEX_THEME.put("Destruction", "#73a6b3");
-			HEX_THEME.put("Scale", "#d9d9d9");
-			HEX_THEME.put("Reroll", "#d9ead3");
-			HEX_THEME.put("Constant", "#c9daf8");
-		}
-		else { // use the simplified colors
-			HEX_THEME.put("Gold", "#ffff00");
-			HEX_THEME.put("Steal", "#ffff00");
-			HEX_THEME.put("Gain", "#ffff00");
-			HEX_THEME.put("Mobility", "#43e243");
-			HEX_THEME.put("Reverse", "#43e243");
-			HEX_THEME.put("Hinder", "#43e243");
-			HEX_THEME.put("Relocate", "#43e243");
-			HEX_THEME.put("Creation", "#00ffff");
-			HEX_THEME.put("Change", "#00ffff");
-			HEX_THEME.put("Opportunity", "#00ffff");
-			HEX_THEME.put("Destruction", "#00ffff");
-			HEX_THEME.put("Scale", "#d9d9d9");
-			HEX_THEME.put("Reroll", "#d9ead3");
-			HEX_THEME.put("Constant", "#c9daf8");
-		}
-		
-		
-	}
-	
-	final static HashMap<String, String> ANSI_THEME = new HashMap<String, String>();
-	{
-		// based on HEX_THEME, fill ANSI_THEME using hexToAnsi()
-		HEX_THEME.forEach(
-				(key, value)
-				-> ANSI_THEME.put(key, hexToAnsi(value))
-				);
-	}
-	
-	public Item(int ItemID, // 0
-			String ItemName, // 1
-			int ItemCost, // 2
+
+
+    //********************************************************************
+	public Item(
+			String ItemName, // 0
+			int ItemCost, // 1
 			String[] ItemDesc, // raw string, split to String[] ItemDesc after // 3
-			String ItemBlurb, // 4
+			String ItemBlurb, // 2
 			String ItemRange,
 			String ItemType,
 			String[] ItemTheme,
 			int ItemTier,
 			String ItemVersion,
-			int ItemComplexity) {
+            boolean isStocked,
+			int ItemComplexity
+            ) {
 		
 		TotalItem++;
-		this.ItemID = ItemID;
 		this.ItemName = ItemName;
 		this.ItemCost = ItemCost;
 		this.ItemDesc = ItemDesc;
@@ -178,10 +108,30 @@ public class Item {
 		this.ItemTier = ItemTier;
 		this.ItemVersion = ItemVersion;
 		this.ItemComplexity = ItemComplexity;
+        this.isStocked = isStocked;
+
 		this.ItemHtml = createHtml();
 		this.ItemPlain = this.createPlain();
 	}
-	
+
+    public Item(Item toClone){
+        this.ItemName = toClone.getName();
+		this.ItemCost = toClone.getCost();
+		this.ItemDesc = toClone.getDesc();
+		this.ItemBlurb = toClone.getBlurb();
+		this.ItemRange = toClone.getRange();
+		this.ItemType = toClone.getType();
+		this.ItemTheme = toClone.getTheme();
+		this.ItemTier = toClone.getTier();
+		this.ItemVersion = toClone.getVersion();
+		this.ItemComplexity = toClone.getComplexity();
+        this.isStocked = isStocked;
+
+		this.ItemHtml = createHtml();
+		this.ItemPlain = this.createPlain();
+
+    }
+
 	public String toString() {
 		return ItemName;
 	}
@@ -202,7 +152,7 @@ public class Item {
 	 * Plain
 	 */
 	
-	public void fullPrint() {
+	public void nicePrint() {
 		
 		try { // try getting the respective color based on ItemTier
 			System.out.println("Item Name: " + ItemName + ANSI_TIER[ItemTier] + " [Tier " + ItemTier + "]" + ANSI_RESET);
@@ -233,7 +183,7 @@ public class Item {
 		}
 		
 		System.out.println("- Range: " + ItemRange);
-		System.out.println("- Type: " + ANSI_THEME.get(ItemType) + ItemType + ANSI_RESET);
+		System.out.println("- Type: " + ANSI_TYPE.get(ItemType) + ItemType + ANSI_RESET);
 		
 		// used before if ItemType color doesn't exist (Item/Hazard)
 //		if (ANSI_THEME.get(ItemType) == null) {
@@ -246,7 +196,7 @@ public class Item {
 		System.out.print("- Theme: ");
 		
 		for (int i = 0; i < ItemTheme.length; i++) { // go through ItemTheme
-			System.out.print(ANSI_THEME.get(ItemTheme[i]) + ItemTheme[i] + ANSI_RESET); // print the colored Theme
+            System.out.print(ANSI_THEME.get(ItemTheme[i]) + ItemTheme[i] + ANSI_RESET); // print the colored Theme
 			if (i != ItemTheme.length - 1) { // if it's not the last Theme, add the dividing bracket
 				System.out.print(" / ");
 			}	
@@ -257,6 +207,65 @@ public class Item {
 		System.out.println("- Version: " + ItemVersion);
 		System.out.println();
 	} // fullPrint()
+
+    public void fullPrint(){
+
+        try { // try getting the respective color based on ItemTier
+			System.out.println("Item Name: " + ItemName + ANSI_TIER[ItemTier] + " [Tier " + ItemTier + "]" + ANSI_RESET);
+
+		} catch (Exception e) { // if the ItemTier is invalid, don't add color
+			System.out.println("Item Name: " + ItemName + " [Tier " + ItemTier + "]");
+		}
+
+		if (!ItemBlurb.isEmpty()) { // print the blurb if it exists
+			System.out.println("- " + ItemBlurb);
+		}
+
+		System.out.println("- Cost: " + ItemCost);
+		System.out.println("- Description: ");
+
+//		// blurb printing variables
+//		int cutOff = 75; // cutoff range (CHANGEABLE)
+//
+//		int blurbLength; // holds the length of the blurb
+//		String blurbSlice = null; // holds blurb substring
+//		int startIndex = 0; // starting index of substring
+//		int endIndex; // end index of substring
+//		int maxDivisions; // number of times blurb can get divided
+
+		// print ItemDesc
+		for (String ItemDescLine : ItemDesc) {
+			System.out.println("\t- " + ItemDescLine);
+		}
+
+		System.out.println("- Range: " + ItemRange);
+		System.out.println("- Type: " + ANSI_TYPE.get(ItemType) + ItemType + ANSI_RESET);
+
+		// used before if ItemType color doesn't exist (Item/Hazard)
+//		if (ANSI_THEME.get(ItemType) == null) {
+//			System.out.println("- Type: " + ANSI_THEME.get("Hazard") + ItemType + ANSI_RESET);
+//		}
+//		else {
+//
+//		}
+
+		System.out.print("- Theme: ");
+
+		for (int i = 0; i < ItemTheme.length; i++) { // go through ItemTheme
+			System.out.print(ANSI_THEME.get(ItemTheme[i]) + ItemTheme[i] + ANSI_RESET); // print the colored Theme
+			if (i != ItemTheme.length - 1) { // if it's not the last Theme, add the dividing bracket
+				System.out.print(" / ");
+			}
+		}
+		System.out.println(); // conclude the line
+
+		// print ItemVersion
+		System.out.println("- Version: " + ItemVersion);
+        System.out.println("- Complexity: " + ItemComplexity);
+        System.out.println("- isStocked " + isStocked);
+
+		System.out.println();
+    }
 	
 	public String createPlain() { // getPlain()
 		/* GOAL TO PRINT:
@@ -356,9 +365,11 @@ public class Item {
             root.put("ItemBlurb", ItemBlurb);
             root.put("ItemRange", ItemRange);
             root.put("ItemType", ItemType);
-            root.put("ItemTypeColor", HEX_THEME.get(ItemType));
+            root.put("ItemTypeColor", HEX_TYPE.get(ItemType));
             root.put("ItemTheme", ItemTheme);
-            root.put("ItemThemeColor", hexConvert(ItemTheme)); // holds the hex for all ItemThemes based on HEX_THEME
+            root.put("ItemThemeColor", hexConvert(ItemTheme)); // holds the hex for all ItemThemes based on HEX_THEME (WIP)
+
+
             /* ItemTheme is NOT split, need to handle somehow
              * 
              * ItemTheme will be a split String[]
@@ -378,7 +389,7 @@ public class Item {
             temp.process(root, out);
             return out.toString();
         } catch (IOException | TemplateException e){
-        	e.printStackTrace();
+            e.printStackTrace();
         	return "[HTML GENERATION ERROR]";
         	
         } finally {
@@ -388,7 +399,6 @@ public class Item {
         }
 	}
 	
-	
 	// get methods
 	public String getName() {
 		return ItemName;
@@ -396,10 +406,6 @@ public class Item {
 	
 	public int getCost() {
 		return ItemCost;
-	}
-	
-	public int getID() {
-		return ItemID;
 	}
 	
 	public String[] getDesc() {
@@ -433,6 +439,8 @@ public class Item {
 	public String getVersion() {
 		return ItemVersion;
 	}
+
+    public boolean getStocked() { return isStocked;}
 	
 	public static int getTotal() {
 		return TotalItem;
@@ -475,20 +483,7 @@ public class Item {
 		this.ItemBlurb = ItemBlurb;
 	}
 	
-	private static String hexToAnsi(String hex) {
-	    int r = Integer.valueOf(hex.substring(1, 3), 16);
-	    int g = Integer.valueOf(hex.substring(3, 5), 16);
-	    int b = Integer.valueOf(hex.substring(5, 7), 16);
 
-	    // Actual ANSI code used for coloring
-	    String ansi = "\u001B[38;2;" + r + ";" + g + ";" + b + "m";
-
-	    // Printable representation
-//	    String visible = "\\u001B[38;2;" + r + ";" + g + ";" + b + "m";
-//	    System.out.println("Visible ANSI string: " + visible);
-
-	    return ansi;
-	}
 }
 
 //// print blurb simple

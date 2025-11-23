@@ -27,7 +27,7 @@ public class QuestCSVMaker {
 					);
 
             uniMethod.printArray(csvArray);
-            System.out.println(questTempLoad);
+//            System.out.println(questTempLoad);
 
 			questNameList.put(questTempLoad.getName().toLowerCase(), questTempLoad);
 			questTierList[questTempLoad.getTier()].add(questTempLoad); // each ArrayList represents a Tier of Quests

@@ -9,7 +9,6 @@ import freemarker.cache.ConditionalTemplateConfigurationFactory;
 import freemarker.core.TemplateConfiguration;
 import universalThings.uniMethod;
 
-import static snakesPackage.BoundItemGen.bind;
 import static snakesPackage.ColorData.*;
 import static snakesPackage.ItemGenMethods.*;
 
@@ -136,24 +135,50 @@ public class ShopGenerator {
 		int refreshCounter = 0; // used in 4. refresh shop
 		int shopTier = 0; // the tier of the Shop, used to unlock more items
 		boolean discountPresent = true; // tracks when the Discount shop item is purchased
-		
-		int[][] weightedShopArray = new int[4][];{ // holds each 4 shopTiers of probability
-			weightedShopArray[0] = new int[]{1,0,0,0,0}; // fallback
-			weightedShopArray[1] = new int[]{0,85,15,0,0};
-			weightedShopArray[2] = new int[]{0,43,42,15,0};
-			weightedShopArray[3] = new int[]{0,5,5,5,1};
+
+		int[][] weight_array_ShopProb = new int[4][];{ // holds each 4 shopTiers of probability
+			weight_array_ShopProb[0] = new int[]{1,0,0,0,0}; // fallback
+			weight_array_ShopProb[1] = new int[]{0,85,15,0,0};
+			weight_array_ShopProb[2] = new int[]{0,43,42,15,0};
+			weight_array_ShopProb[3] = new int[]{0,4,5,6,1};
 		}
+
+        int[][] weight_array_ShopType = new int[4][]; {
+            weight_array_ShopType[0] = new int[] {1,0,0,0,0,0,0,0};
+            weight_array_ShopType[1] = new int[] {8,5,4,0,1,1,1,0};
+            weight_array_ShopType[2] = new int[] {8,5,4,0,1,1,1,0};
+            weight_array_ShopType[3] = new int[] {7,5,4,1,1,1,1,0}; // need to add t4 passives and powers first
+        }
+
+        /* How to run this?
+        need to bind every single one.
+        Next run multiItemGen(itemArray, shopBound)
+        - in multiItemGen, fine with generating items. the issue is detecting if an item is physically impossible.
+        - multiItemGen uses customItemGen, but to detect whether an item is physically impossible
+
+        first each shopBound is contained of a weightProb and weightType.
+        - 1. store the raw of weightProb and weightType.
+            - issue is that boundItemGen exists so that you don't use it
+        - 2. figure out polish, itemTier of weightProb is and then find the itemType of weightType is
+        - 3. feed it to customItemGen. it either returns a valid item, duplicate item, or null (impossible).
+            - 3.1. if it return valid, good.
+            - 3.2. if it return dupe, redo the polish.
+            - 3.3. if it return null, the polish is impossible, so redo it again.
+
+
+         */
 		
 		BoundItemGen[] shopBound = new BoundItemGen[4]; {
-			for (int i = 0; i < 4; i++) {
-				shopBound[i] = bind(weightedShopArray[i]);
+            for (int i = 0; i < 4; i++) {
+				shopBound[i] = new BoundItemGen(weight_array_ShopProb[i], null, weight_array_ShopType[i]);
 			}
 		}
 
 
 		// Chest variables
 		int[] chestProb = {0,1,6,3,0}; // used for generating chests
-		BoundItemGen chestBound = bind(chestProb);
+        int[] chestType = {3,4,4,0,2,2,1,0};
+		BoundItemGen chestBound = new BoundItemGen(chestProb, null, chestType);
 
 
 		// probability of generating a Random Tiered Quest based on shopTier
@@ -172,46 +197,48 @@ public class ShopGenerator {
 			};
 				
 			questRewardList[1] = new String[]{ // questRewardT1
-					"12-25 Gold", // 1
-					"3 Random T1 Items", // 2
-					"2 Random T2 Item", // 3
-					"1 Random T3 Item", // 4
-					"1 Lockbox Item", // 5
-					"Any Normal Dice Face up to D6", // 6
-					"Free D8", // 7
-					"Free D10" // 8
+					"18-25 Gold", // 1
+                    "2 Random T2 Items", // 2
+                    "2 Random T3 Items", // 3
+                    "1 Random T2 Power", // 4
+					"2 Random T2 Modifiers", // 5
+					"1 Lockbox Item", // 6
+                    "D10.5 Face", // 7
+					"Free D8", // 8
+					"Free D10" // 9
 			};
 			
 			// questRewardT2
 			questRewardList[2] = new String[]{
-					"25-45 Gold", // 1
-					"2 Random T3 Item", // 2
-					"2 Lockbox Items", // 3
-					"Any Normal Dice Face up to D8", // 4
-					"D10.5 Face", // 5
-					"D12 Face", // 6
-					"Free D10", // 7
-					"Free D12", // 8
+					"25-40 Gold", // 1
+					"3 Random T3 Item", // 2
+					"2 Random T3 Modifiers", // 3
+                    "1 Random T3 Power", // 4
+                    "2 Lockbox Items", // 5
+                    "D20.5 Face", // 6
+					"Free D12", // 7
+                    "Free D16", // 8
+                    "Random Artifact" // 9
 			};
 			
 			// questRewardT3
 			questRewardList[3] = new String[]{
-					"50-75 Gold", // 1
-					"Any Normal Dice Face up to D20", // 2
-					"D20.5 Face", // 3
-					"Free D2", // 4
-                    "Free D20", // 5
-					"Random Artifact" // 6
+					"40-65 Gold", // 1
+                    "Random Artifact", // 2
+					"Free D2", // 3
+                    "Free D20", // 4
+                    "Mirror", // 5
+                    "Crown" // 6
 			};
 		}
 		
-		int[][] questRewardProb = new int[4][]; { // create a local code block
+		int[][] questRewardProb = new int[4][]; { // probability of picking a REWARD for a T1,T2,T3 Quest
 			// access questRewardProb which exists at a higher scope, then update the variable
 			
 			questRewardProb[0] = new int[] {1}; // fallback
-			questRewardProb[1] = new int[] {10,10,10,10,8,8,5,1}; // probability of picking a REWARD for a T1 Quest
-			questRewardProb[2] = new int[] {12,12,12,6,6,6,3,1}; // probability of picking a REWARD for a T1 Quest
-			questRewardProb[3] = new int[] {12,12,8,2,1,1}; // probability of picking a REWARD for a T1 Quest
+			questRewardProb[1] = new int[] {7,8,8,5,5,5,4,1,1};
+			questRewardProb[2] = new int[] {8,9,7,7,6,3,2,2,1};
+			questRewardProb[3] = new int[] {4,4,3,3,2,2};
 		}
         Quest[] questBoard = new Quest[QUEST_BOARD_TOTAL]; // raw
         Quest[] currentQuestBoard = new Quest[QUEST_BOARD_TOTAL]; // with the modified rewards
@@ -219,14 +246,17 @@ public class ShopGenerator {
 		// Starting item variables
 		Item[][] startArray = new Item[TOTAL_PLAYERS][START_INV_SLOTS]; // 3 players, 4 length/starting items
 		boolean[][] startRefreshed = new boolean[3][4]; // boolean for already refreshed items
-		
+        int[] startType = {5,4,4,0,0,0,0,0};
+
 		BoundItemGen[] startBound = new BoundItemGen[4]; { // (wip)NOTE: the BoundItemGen is kind of fixed compared to START_INV_SLOTS
-			startBound[0] = bind(1, item -> (!item.getType().equals("Passive")) && !item.getType().equals("Power"));
-			startBound[1] = bind(1, item -> (!item.getType().equals("Passive")) && !item.getType().equals("Power"));
-			startBound[2] = bind(2, item -> (!item.getType().equals("Passive")) && !item.getType().equals("Power"));
-			startBound[3] = bind(2, item -> (!item.getType().equals("Passive")) && !item.getType().equals("Power"));
+			startBound[0] = new BoundItemGen(1, null, startType);
+			startBound[1] = new BoundItemGen(1, null, startType);
+			startBound[2] = new BoundItemGen(2, null, startType);
+			startBound[3] = new BoundItemGen(2, null, startType);
 		}
-        
+
+        int[] gachaType = {1,1,1,0,1,1,1,0};
+
 		Item[] tutorialArray = new Item[]{
 				specializedItemCheck(itemNameList.get("# in a bottle")),
                 specializedItemCheck(itemNameList.get("banana peel")),
@@ -331,6 +361,17 @@ public class ShopGenerator {
             }
 
 			if (menuID == 99) { // do something specific
+                /*
+                singleItemGen(weightedProbability or itemTier) -> item
+                customItemGen(weightedProbability, condition) --looped for condition--> singleItemGen(weightedProbability)
+
+                singleItemGen fundamentally just makes an item. that's it.
+                customItemGen has very specific filters
+                typeItemGen would call singleItemGen with a general itemType filter
+
+                {Item, Hazard, Building, Artifact, Passive, Curse, Power}
+
+                 */
 
 			}
 			
@@ -367,6 +408,7 @@ public class ShopGenerator {
 			
 			else if (menuID == 3) { // open a new shop
 				// Next: Print the shop items
+                uniMethod.printArray(shopList);
 				System.out.println("""
                         \r
                            __    __  .__              _   /\\         .__                     __   \r
@@ -421,7 +463,7 @@ public class ShopGenerator {
 			} // input 4
 			
 			else if (menuID == 5) { // refresh the shop
-				System.out.println("Shop has been REFRESHED");
+				System.out.println("Shop+Quest Board has been REFRESHED");
 				
 				// fill the shopList with items
 				multiItemGen(shopList, shopBound[shopTier]);
@@ -591,44 +633,29 @@ public class ShopGenerator {
 			} // else if input 13
 			
 			else if (menuID == 14) { // generate THEMED chest loot (UPDATE THIS)
-				int chestNum;
+				int chestTotal;
 				
 				System.out.println("how many items?: ");
-				chestNum = myScanner.nextInt();
+				chestTotal = myScanner.nextInt();
 				
 				myScanner.nextLine(); // refresh myScanner
 				System.out.println("choose a Theme (caps sensitive): ");
 				
 				final String TempFilter = myScanner.nextLine(); // make brand new final variable
 				
-				System.out.println("chestTotal: " + chestNum);
+				System.out.println("chestTotal: " + chestTotal);
 				System.out.println("item Theme: " + TempFilter);
 				
 				/* problem:
 				 * ItemThemes are now String[], not String
 				 * 
 				 */
-				
-				// NOTE: strTempFinal[0] instead of strTemp is probably a RACE condition FIX
-				chestOpen(chestNum, chestProb, customGen, item -> (
-                        Arrays.asList(item.getTheme()).contains(TempFilter)
-						
-						));
-				
-				/*(
-						
-						for (String theme : TempFilter) {
-							if (item.getTheme().equals(TempFilter)) {
-								return true;
-							}
-						}
-						
-						return false;
-						
-						));
-				 * 
-				 */
-				
+
+                BoundItemGen chestThemeBound = new BoundItemGen(chestProb, item -> (
+                        Arrays.asList(item.getTheme()).contains(TempFilter)), chestType);
+
+                chestOpen(chestTotal, chestThemeBound);
+
 			} // input 14
 			
 			else if (menuID == 15) { // Print 1 item for each Tier
@@ -639,7 +666,7 @@ public class ShopGenerator {
 				}
 			} // input 15
 			
-			else if (menuID == 16) {
+			else if (menuID == 16) { // used for gachapon
 				int itemTier;
 				Item[] generatedItems;
 				
@@ -660,7 +687,7 @@ public class ShopGenerator {
 					continue;
 				}
 				
-				multiItemGen(generatedItems, singleGen, itemTier, null);
+				multiItemGen(generatedItems, itemTier, null, gachaType);
 					
 				for (Item target : generatedItems) {
 					target.nicePrint();
@@ -813,12 +840,12 @@ public class ShopGenerator {
 					if (itemSlot == 0 || itemSlot == 1) { // if it item no.1 or 2
 						System.out.println("refreshing T1");
 						// generate a T1 which is impossible to be a Passive
-						generatedItem = noDupeItemGen(startArray[selectedPlayer], 1, customGen, item -> (!item.getType().equals("Passive")));
+						generatedItem = noDupeItemGen(startArray[selectedPlayer], startBound[0]);
 					}
 					else {
 						// generate a T2 that's NOT a Passive
 						System.out.println("refreshing T2");
-						generatedItem = noDupeItemGen(startArray[selectedPlayer], 2, customGen, item -> (!item.getType().equals("Passive")));
+						generatedItem = noDupeItemGen(startArray[selectedPlayer], startBound[2]);
 					}
 					startRefreshed[selectedPlayer][itemSlot] = true; // set startRefreshed to true as item was refreshed
 					
@@ -1080,7 +1107,7 @@ public class ShopGenerator {
 	 * 
 	 */
 	
-	public static <T> Item[] chestOpen(int chestTotal, BoundItemGen chestBound) {
+	public static Item[] chestOpen(int chestTotal, BoundItemGen chestBound) {
 		Item[] chestArray = new Item[chestTotal];
 		multiItemGen(chestArray, chestBound);
 		
@@ -1088,18 +1115,6 @@ public class ShopGenerator {
         for (Item item : chestArray) { // display all the items
             item.nicePrint();
         }
-		
-		return chestArray;
-	}
-	
-	public static <T> Item[] chestOpen(int chestTotal, T pattern, ItemGenMethod<T> itemGen, Predicate<Item> filter) {
-		Item[] chestArray = new Item[chestTotal];
-		multiItemGen(chestArray, itemGen, pattern, filter);
-		
-		System.out.println("CHEST OPENING TIME");
-		for (int i = 0; i < chestArray.length; i++) { // display all the items
-			chestArray[i].nicePrint();
-		}
 		
 		return chestArray;
 	}
@@ -1235,6 +1250,8 @@ public class ShopGenerator {
             winningQuestRewardIndex = weightedProb(questRewardProb[winningQuestTier]); // holds the index of quest's Reward
             questReward = questRewardList[winningQuestTier][winningQuestRewardIndex]; // get the quest's Reward based on index
 
+            // next, analyze the questReward
+
             // Next: Add bonus info based on Description
             /* X Item: Scavenger Hunt
              * X/Y Space: Movement
@@ -1261,13 +1278,15 @@ public class ShopGenerator {
 
                 for (int j = 0; j < quantityReward; j++) { // generate quantity number of random items
                     // generate random item Rewards based on the item Tier
-                    if (tierReward == 1) {
-                        itemReward = singleItemGen(1);
-                    } else if (tierReward == 2) {
-                        itemReward = singleItemGen(2);
-                    } else { // tier 3 item
-                        itemReward = singleItemGen(3);
-                    }
+                    itemReward = typeItemGen(tierReward, null, new int[]{1,1,1});
+
+//                    if (tierReward == 1) {
+//                        itemReward = typeItemGen(1);
+//                    } else if (tierReward == 2) {
+//                        itemReward = typeItemGen(2);
+//                    } else { // tier 3 item
+//                        itemReward = typeItemGen(3);
+//                    }
 
                     // place itemTemp in bonusReward multiple times for each Random Reward item
                     bonusReward += itemReward.getName();
@@ -1277,15 +1296,36 @@ public class ShopGenerator {
                     }
 
                 } // for loop j
-
-
             } // else if random
 
-            else if (questReward.contains("Artifact")) { // if it contains artifact
-                itemReward = singleItemGen(4); // generate a random artifact
-                bonusReward = ""; // reset bonusReward
-                bonusReward += itemReward.getName(); // add Random Artifact to bonusReward
+            else if (questReward.contains("Modifier")) {
+                int quantityReward = Integer.parseInt(questReward.substring(0, 1)); // holds the quantity of item Reward
+                int tierReward = Integer.parseInt(questReward.substring(questReward.indexOf('T') + 1, questReward.indexOf('T') + 2)); // tier of items
 
+                String bonusRewardHold;
+
+                bonusReward = "";
+
+                for (int i = 0; i < quantityReward; i++){
+                    bonusRewardHold = typeItemGen(tierReward, null, "Modifier").getName();
+                    bonusReward += bonusRewardHold;
+                    if (i != quantityReward - 1){
+                        bonusReward += ", ";
+                    }
+                }
+
+            }
+
+            else if (questReward.contains("Power")) {
+//                int quantityReward = Integer.parseInt(questReward.substring(0, 1)); // holds the quantity of item Reward
+                int tierReward = Integer.parseInt(questReward.substring(questReward.indexOf('T') + 1, questReward.indexOf('T') + 2)); // tier of items
+                bonusReward = typeItemGen(tierReward, null, "Power").getName();
+
+            }
+
+            else if (questReward.contains("Artifact")) { // if it contains artifact
+                itemReward = typeItemGen(4, null, "Artifact"); // generate a random artifact
+                bonusReward = itemReward.getName(); // add Random Artifact to bonusReward
             }
             // Now: bonusReward now contains extra information based on questReward
 
@@ -1654,4 +1694,10 @@ public class ShopGenerator {
  * customItemGen() with int and int[]
  * singleItemGen() with int and int[]
  * 
+ */
+
+/*
+
+
+
  */

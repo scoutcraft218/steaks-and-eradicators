@@ -194,7 +194,6 @@ public class Item {
 //		}
 		
 		System.out.print("- Theme: ");
-		
 		for (int i = 0; i < ItemTheme.length; i++) { // go through ItemTheme
             System.out.print(ANSI_THEME.get(ItemTheme[i]) + ItemTheme[i] + ANSI_RESET); // print the colored Theme
 			if (i != ItemTheme.length - 1) { // if it's not the last Theme, add the dividing bracket
@@ -366,6 +365,10 @@ public class Item {
             root.put("ItemRange", ItemRange);
             root.put("ItemType", ItemType);
             root.put("ItemTypeColor", HEX_TYPE.get(ItemType));
+
+//            uniMethod.printArray(ItemTheme);
+//            uniMethod.printArray(hexConvert(ItemTheme));
+
             root.put("ItemTheme", ItemTheme);
             root.put("ItemThemeColor", hexConvert(ItemTheme)); // holds the hex for all ItemThemes based on HEX_THEME (WIP)
 

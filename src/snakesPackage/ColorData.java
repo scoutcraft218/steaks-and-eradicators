@@ -35,8 +35,8 @@ public class ColorData {
 		HEX_TYPE.put("Artifact", "#b6d7a8");
 		HEX_TYPE.put("Passive", "#a2c4c9");
 		HEX_TYPE.put("Curse", "#b4a7d6");
-		HEX_TYPE.put("Hazard/Item", "#ff9900");
 		HEX_TYPE.put("Power", "#4ad3e2");
+        HEX_TYPE.put("Modifier", "#f34199");
 	}
     final static HashMap<String, String> HEX_THEME_COMPLEX = new HashMap<String,String>();
         static {
@@ -49,11 +49,13 @@ public class ColorData {
             HEX_THEME_COMPLEX.put("Relocate", "#d33ed2");
             HEX_THEME_COMPLEX.put("Creation", "#00ffff");
             HEX_THEME_COMPLEX.put("Change", "#f7007a");
-            HEX_THEME_COMPLEX.put("Opportunity", "#4ca7fa");
             HEX_THEME_COMPLEX.put("Destruction", "#73a6b3");
             HEX_THEME_COMPLEX.put("Scale", "#d9d9d9");
             HEX_THEME_COMPLEX.put("Reroll", "#d9ead3");
             HEX_THEME_COMPLEX.put("Constant", "#c9daf8");
+            HEX_THEME_COMPLEX.put("Opportunity", "#ffffff");
+            HEX_THEME_COMPLEX.put("Chaos", "#ff0000");
+            HEX_THEME_COMPLEX.put("Mana", "#4ca7fa");
         }
     final static HashMap<String, String> HEX_THEME_SIMPLE = new HashMap<String,String>();
 		static { // use the simplified colors
@@ -66,11 +68,13 @@ public class ColorData {
 			HEX_THEME_SIMPLE.put("Relocate", "#43e243");
 			HEX_THEME_SIMPLE.put("Creation", "#00ffff");
 			HEX_THEME_SIMPLE.put("Change", "#00ffff");
-			HEX_THEME_SIMPLE.put("Opportunity", "#00ffff");
 			HEX_THEME_SIMPLE.put("Destruction", "#00ffff");
-			HEX_THEME_SIMPLE.put("Scale", "#d9d9d9");
+			HEX_THEME_SIMPLE.put("Scale", "#d9ead3");
 			HEX_THEME_SIMPLE.put("Reroll", "#d9ead3");
-			HEX_THEME_SIMPLE.put("Constant", "#c9daf8");
+			HEX_THEME_SIMPLE.put("Constant", "#d9ead3");
+            HEX_THEME_SIMPLE.put("Opportunity", "#ffffff");
+            HEX_THEME_SIMPLE.put("Chaos", "#ffffff");
+            HEX_THEME_SIMPLE.put("Mana", "#ffffff");
 		}
 
     static HashMap<String, String> HEX_THEME = HEX_THEME_COMPLEX;
